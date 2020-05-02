@@ -30,3 +30,6 @@ In reality, this automaton was human guided in a somewhat sophisticated way and 
 This is also the case for nowadays overrated AI which is till now far away from true (human) intelligence (see status to artificial general intelligence, causal inference etc.).
 This holds true especially in the current Powertrain setting.
 As such, Mephisto is a tool to help mock human intelligence and partly integrate human knowledge into our algorithms to assist human tasks in our digital and fast world.
+
+## Screenshot
+![See it in action](/../master/docs/imgs/screenshot.png?raw=true "Screenshot v.0.1")
