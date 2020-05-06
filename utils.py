@@ -7,7 +7,24 @@ import dash_html_components as html
 
 DATA = Path(__file__).resolve().parent.joinpath("data")
 
+
+PLACEHOLDER_EFFECT_CATEGORIES = [
+    {"label": "normal", "value": "class_normal"},
+    {"label": "tool wear", "value": "class_tool_wear"},
+    {"label": "tool failure", "value": "class_tool_failure"}]
+PLACEHOLDER_EFFECT_SUB = [
+    {"label": "tool wear solidified", "value": "class_tool_wear_solidified"},
+    {"label": "tool wear through cooling", "value": "class_tool_wear_cooling"}]
+PLACEHOLDER_CAUSE_CATEGORIES = [
+    {"label": "axial speed", "value": "speed"},
+    {"label": "cooling below 23°", "value": "cooling"}]
+PLACEHOLDER_CAUSE_SUB = [
+    {"label": "speed > 8000rpm", "value": "8000"},
+    {"label": "speed > 5500rpm", "value": "5500"}]
+
+
 def queryData(t, col):
+    # TODO: db query
     if t:
         p = DATA.joinpath("p1.parquet")
     else:
@@ -21,6 +38,53 @@ def queryData(t, col):
         arr = df.loc[:, col]
     
     return arr
+
+def querySimilarSamples(annotationClass, n=3):
+    """
+        annotationClass is index of a class
+    """
+    #TODO: query: where annotationClass
+    # sample nsize=3
+    d = []
+    data = [[0,13,46,342,543],[1.23,345.5,45.43,124.4,342.4]]
+    for _ in range(n):
+        d.append({'t0': 1588636800021, 'TID': None, 'data': data})
+
+    return d
+
+
+def queryAnnotationClasses(atype='ecat'):
+    # TODO: db query
+    options = []
+    if 'ecat' in atype:
+        options = PLACEHOLDER_EFFECT_CATEGORIES
+    elif 'esub' in atype:
+        options = PLACEHOLDER_EFFECT_SUB
+    elif 'ccat' in atype:
+        options = PLACEHOLDER_CAUSE_CATEGORIES
+    elif 'csub' in atype:
+        options = PLACEHOLDER_CAUSE_SUB
+
+    return options
+                        
+
+def storeAnnotationClasses(strInput, atype='ecat'):
+    saved = queryAnnotationClasses(atype)
+    idx = len(saved) + 1
+    new = {"label": strInput, "value": idx}
+    # TODO: add entry to db
+    dictOptions = saved + new
+    if 'ecat' in atype:
+        PLACEHOLDER_EFFECT_CATEGORIES = dictOptions
+    elif 'esub' in atype:
+        PLACEHOLDER_EFFECT_SUB = dictOptions
+    elif 'ccat' in atype:
+        PLACEHOLDER_CAUSE_CATEGORIES = dictOptions
+    elif 'csub' in atype:
+        PLACEHOLDER_CAUSE_SUB = dictOptions
+
+    return dictOptions
+
     
 def fa(className):
     """A convenience component for adding Font Awesome icons"""
