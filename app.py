@@ -18,12 +18,12 @@ app.layout = serve_layout()
 register_callbacks(app)
 
 """
-# Mephisto - Data Annotation for Tensor data e.g. Time Series or general multidimensional Arrays
+	# Mephisto - Data Annotation for Tensor data e.g. Time Series or general multidimensional Arrays
 
-Non-intuitive human intelligence task for physical highly complex data produced in dynamic production systems.
-Data Labeling Tool for physical mechanisms in subsystems of a cyber-physical production system.\n
-Collaborative Human Intelligence Tasks (Process/Mechanical Engineers meet Data Engineers++)\n
-[Project: GuineaPig]
+	Non-intuitive human intelligence task for physical highly complex data produced in dynamic production systems.
+	Data Labeling Tool for physical mechanisms in subsystems of a cyber-physical production system.\n
+	Collaborative Human Intelligence Tasks (Process/Mechanical Engineers meet Data Engineers++)\n
+	[Project: GuineaPig]
 """
 
 if __name__ == '__main__':

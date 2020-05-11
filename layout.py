@@ -1,24 +1,21 @@
 from datetime import datetime as dt
-
 import dash_bootstrap_components as dbc
 import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, State, Output
-from utils import fa
+from utils import fa, queryAnnotationClasses, createFigTemplate
 
 from dash.exceptions import PreventUpdate
-# import adapt.sup.siemens as siemens # read_json
 
-__version__ = "0.1"
-PROJ_URL = "https://d.ai/mephisto"
-PROJ_ISSUE_URL = "https://git.daimler.com/I40PT/Mephisto/issues/new"
-
+__version__ = "1.0"
+PROJ_URL = "https://drahnreb.github.io/Mephisto"
+PROJ_ISSUE_URL = "https://github.com/drahnreb/Mephisto/issues/"
+PERSISTANCE = "memory" # session
 
 def initHead():
     """ 
         head with Logo/Description/Link to further resources
     """
-    
     return dbc.Row(
         id="div-head-desc",
         children=[
@@ -64,7 +61,7 @@ def initSelectData():
                     dcc.Store(
                         data=[],
                         id="store-data-connector",
-                        storage_type="session",
+                        storage_type=PERSISTANCE,
                         modified_timestamp=-1
                     )
                     #dbc.Badge("", color="light", id="badge-connector")
@@ -219,7 +216,6 @@ def initWorkspace():
         
     def _createAnnotationSpace():
         """ annotation class space """
-    
         def _createEffectView():
             return [
                 dbc.Col(
@@ -229,14 +225,14 @@ def initWorkspace():
                             dbc.Label("Select from existing effects", style={"font-weight": "bold"}),
                             dcc.Dropdown(
                                 id="dropdown-effect-category-selector",
-                                options=[], # Spawned list of dict options {'label': 'l1', 'value': 'v1'} during session
+                                options=queryAnnotationClasses(atype='ecat'), # Spawned list of dict options {'label': 'l1', 'value': 'v1'} during session
                                 value=None,
                                 placeholder="Type to search...",
                                 searchable=True,
                                 clearable=True,
                                 multi=False,
                                 persistence=True,
-                                persistence_type='session'
+                                persistence_type=PERSISTANCE
                             )
                         ])),
                         # definition of new effect
@@ -248,7 +244,7 @@ def initWorkspace():
                                         valid=False,
                                         invalid=False,
                                         persistence=True,
-                                        persistence_type="session",
+                                        persistence_type=PERSISTANCE,
                                         id="input-new-effect-category"
                                     ),
                                     dbc.FormText("Try to select from available effects. Care about naming conventions!"),
@@ -273,7 +269,7 @@ def initWorkspace():
                                     clearable=True,
                                     multi=True,
                                     persistence=True,
-                                    persistence_type='session')
+                                    persistence_type=PERSISTANCE)
                             ]
                         ), id="div-effect-subcategory", style={"visibility": "hidden"}),
                         # definition of new effect types
@@ -285,7 +281,7 @@ def initWorkspace():
                                         valid=False,
                                         invalid=False,
                                         persistence=True,
-                                        persistence_type="session",
+                                        persistence_type=PERSISTANCE,
                                         id="input-new-effect-subcategory"
                                     ),
                                     dbc.FormText("Try to select from available sub-effects. Care about naming conventions!"),
@@ -299,14 +295,22 @@ def initWorkspace():
                             )
                         ]), id="div-add-effect-subcategory", style={"visibility": "hidden"}),
                         # samples with same class assignment
-                        dbc.Row(dbc.Col([
-                            html.Hr(),
-                            dbc.Label("Other samples with same effect", style={"font-weight": "bold"}),
-                            dbc.ListGroup(
-                                [],
-                                id="listgroup-similar-effect-samples"
-                            )
-                        ]), id="div-samples-effect", style={"visibility": "hidden"})
+                        dbc.Row([
+                            dcc.Store(
+                                data={'class': '', 'data': []},
+                                id="store-similar-effect-samples",
+                                modified_timestamp=-1,
+                                storage_type=PERSISTANCE
+                            ),
+                            dbc.Col([
+                                html.Hr(),
+                                dbc.Label("Other samples with same effect", style={"font-weight": "bold"}),
+                                dbc.ListGroup(
+                                    children=[],
+                                    id="listgroup-similar-effect-samples"
+                                )
+                            ], id="div-samples-effect", style={"visibility": "hidden"})
+                        ])
                     ]
                 )
             ]
@@ -319,14 +323,14 @@ def initWorkspace():
                         dbc.Label("Select from existing causes", style={"font-weight": "bold"}),
                         dcc.Dropdown(
                             id="dropdown-cause-category-selector",
-                            options=[], # Spawned list of dict options {'label': 'l1', 'value': 'v1'} during session
+                            options=queryAnnotationClasses(atype='ccat'), # Spawned list of dict options {'label': 'l1', 'value': 'v1'} during session
                             value=None,
                             placeholder="Type to search...",
                             searchable=True,
                             clearable=True,
                             multi=False,
                             persistence=True,
-                            persistence_type='session'
+                            persistence_type=PERSISTANCE
                         )
                     ])),
                     # definition of new effect
@@ -338,7 +342,7 @@ def initWorkspace():
                                     valid=False,
                                     invalid=False,
                                     persistence=True,
-                                    persistence_type="session",
+                                    persistence_type=PERSISTANCE,
                                     id="input-new-cause-category"
                                 ),
                                 dbc.FormText("Try to select from available cause. Care about naming conventions!"),
@@ -363,7 +367,7 @@ def initWorkspace():
                                 clearable=True,
                                 multi=True,
                                 persistence=True,
-                                persistence_type='session')
+                                persistence_type=PERSISTANCE)
                         ]
                     ), id="div-cause-subcategory", style={"visibility": "hidden"}),
                     # definition of new effect types
@@ -375,7 +379,7 @@ def initWorkspace():
                                     valid=False,
                                     invalid=False,
                                     persistence=True,
-                                    persistence_type="session",
+                                    persistence_type=PERSISTANCE,
                                     id="input-new-cause-subcategory"
                                 ),
                                 dbc.FormText("Try to select from available sub-causes. Care about naming conventions!"),
@@ -389,20 +393,28 @@ def initWorkspace():
                         )
                     ]), id="div-add-cause-subcategory", style={"visibility": "hidden"}),
                     # samples with same class assignment
-                    dbc.Row(dbc.Col([
-                        html.Hr(),
-                        dbc.Label("Other samples with same cause", style={"font-weight": "bold"}),
-                        dbc.ListGroup(
-                            children=[],
-                            id="listgroup-similar-cause-samples"
-                        )
-                    ]), id="div-samples-cause", style={"visibility": "hidden"})
+                    dbc.Row([
+                        dcc.Store(
+                            data={'class': '', 'data': []},
+                            id="store-similar-cause-samples",
+                            modified_timestamp=-1,
+                            storage_type=PERSISTANCE
+                        ),
+                        dbc.Col([
+                            html.Hr(),
+                            dbc.Label(f"Other samples with same cause", style={"font-weight": "bold"}),
+                            dbc.ListGroup(
+                                children=[],
+                                id="listgroup-similar-cause-samples"
+                            )
+                        ], id="div-samples-cause")
+                    ])
                 ])
             ]
 
+
         def _createToolbar():
             """ annotation toolset """
-
             return dbc.Container([
                 # dbc.Row([
                 #     dbc.Col(dbc.Button(children=[fa("far fa-square"), " Lasso"], outline=True, block=True, color="secondary", id="btn-tools-lasso", className="p-1"), xl=4, className="p-1"),
@@ -426,12 +438,13 @@ def initWorkspace():
             dbc.Row(_createCauseView()),
             dbc.Row(dbc.Col(
                 dbc.Button([
-                        "Next phenomenon",
+                        "Save phenomenon",
                         dcc.Loading(
                             id="loading-workspace-save",
                             children=[],#html.Div(id="loading-workspace-save"),
                             type="circle",
                         )],
+                    disabled=True,
                     outline=False,
                     block=True,
                     color="success",
@@ -455,6 +468,8 @@ def initWorkspace():
                         block=True,
                         color="danger",
                         n_clicks_timestamp=-1,
+                        n_clicks=0,
+                        disabled=True,
                         id="btn-workspace-reset"),
                     id='confirm-dialog-reset',
                     submit_n_clicks_timestamp=-1,
@@ -484,11 +499,9 @@ def initWorkspace():
     )
 
 
-
 ##########
 # LAYOUT
 ##########
-
 def serve_layout():
     return dbc.Container([
         ## div-head-desc
@@ -502,57 +515,72 @@ def serve_layout():
         fluid=True
         # style={"height": "100vh"}
     )
-    
-    
-  
+
+
 ##########
 # Templates for
 # "spawnable" elements
 ##########
 
-def spawnSimilarSamples(data, idx, atype='effect'):
-    epochtime = data['t0']/1000
-    strDatetime =  dt.fromtimestamp(epochtime).strftime('%Y-%m-%d %H:%M:%S.%f')
-    if 'cause' in atype:
-        atype = 'cause'
-        color = 'primary'
-    else:
-        atype = 'effect'
-        color = 'secondary'
+def spawnSimilarSamples(atypeSamplesStore: dict, atype: str = 'effect'):
 
-    lgi = dbc.ListGroupItem(
-        [
-            dbc.Row([
-                dcc.Store(
-                    data=str(data),
-                    id={
-                        "type": f"store-similar-{atype}-sample",
-                        "index": idx
-                    },
-                    modified_timestamp=-1,
-                    storage_type="session"),
-                dbc.Col(strDatetime),
-                dbc.Col(dbc.Badge(
-                    "",  # plot number
-                    color="info",
-                    style={"visibility": "visible"},
-                    id={
-                        "type": f"badge-similar-{atype}-sample",
-                        "index": idx
-                    },
-                ))
-            ], justify="between")
-        ],
-        id={
-            "type": f"list-similar-{atype}-sample",
-            "index": idx
-        },
-        n_clicks=0,
-        action=True,
-        color=color
-    )
+    samples = []
+    annotatedClass = atypeSamplesStore.get('class')
+    listData = atypeSamplesStore.get('data')
 
-    return lgi
+    if len(listData):
+        for data in listData:
+            eq = data.get('eq')
+            TID = data.get('TID')
+            epochtime = data.get('t0')
+            if epochtime:
+                epochtime = epochtime/1000
+                strDatetime =  dt.fromtimestamp(epochtime).strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+            else:
+                strDatetime = ''
+
+            if 'cause' in atype:
+                atype = 'cause'
+                color = 'primary'
+            else:
+                atype = 'effect'
+                color = 'light'
+
+            item = dbc.ListGroupItem(
+                [
+                    dbc.Row([
+                        dbc.Col([
+                            dbc.Row([
+                                dbc.Col(strDatetime),
+                                dbc.Col(dbc.Badge(
+                                    "",  # plot number
+                                    color="info",
+                                    style={"visibility": "visible"},
+                                    id={
+                                        "type": f"badge-similar-{atype}-sample",
+                                        "eq": eq,
+                                        "index": epochtime
+                                    },
+                                ))
+                            ]),
+                            dbc.Row(
+                                dbc.Col(annotatedClass)
+                            )
+                        ])
+                    ],justify="between")
+                ],
+                id={
+                    "type": f"list-similar-{atype}-sample",
+                    "eq": eq,
+                    "index": epochtime
+                },
+                n_clicks=0,
+                action=True,
+                color=color
+            )
+            samples.append(item)
+            
+    return samples
 
 
 def spawnDataConnector(strConnectorDesc, idx):
@@ -573,29 +601,36 @@ def spawnDataConnector(strConnectorDesc, idx):
         )
 
 
-def spawnGraph2D(idx, fig, listDictAllFeatures, strEQ, strType, intNDim, strMinDate, strMaxDate):
+def spawnGraph(idx, kind, listDictAllFeatures, strEQ, strType, intNDim, strMinDate, strMaxDate):
     """ 
         fig: json with link to aggregate or pre-cached dataframe to load into plotly graph
         meta: schema with suplimental information
     """
-    return dbc.Container([
+    if kind == 'scatter':
+        selectSamplesRow = [
+        dbc.Row(
+            dbc.FormText(
+                f"Machine EQ: {strEQ}. Date Range: {strMinDate} - {strMaxDate}. Data Source: {strType}.",
+                id={
+                    "type": "formtext-feature",
+                    "index": idx,
+                    # "eq": strEQ,
+                    # "type": strType
+                }
+            )
+        ),
         dbc.Row([
             dbc.Col(
                 dbc.FormGroup([
                     dbc.Select(
                         id={
                             "type": "select-feature",
-                            "index": idx
+                            "index": idx,
+                            # "eq": strEQ,
+                            # "type": strType
                         },
                         options=listDictAllFeatures
                     ),
-                    dbc.FormText(
-                        f"Machine EQ: {strEQ}. Date Range: {strMinDate} - {strMaxDate}. Data Source: {strType}.",
-                        id={
-                            "type": "formtext-feature",
-                            "index": idx
-                        }
-                   )
                 ]),
                 width=6,
             ),
@@ -605,7 +640,9 @@ def spawnGraph2D(idx, fig, listDictAllFeatures, strEQ, strType, intNDim, strMinD
                     color="secondary",
                     id={
                         "type": "btn-add-feature",
-                        "index": idx
+                        "index": idx,
+                        # "eq": strEQ,
+                        # "type": strType
                     }
                 ),
                 width=1
@@ -618,7 +655,9 @@ def spawnGraph2D(idx, fig, listDictAllFeatures, strEQ, strType, intNDim, strMinD
                             valid=None,
                             id={
                                 "type": "inp-class-definition",
-                                "index": idx
+                                "index": idx,
+                                # "eq": strEQ,
+                                # "type": strType
                             }
                         ),
                         # SPAWN
@@ -626,7 +665,9 @@ def spawnGraph2D(idx, fig, listDictAllFeatures, strEQ, strType, intNDim, strMinD
                             f"of total: {intNDim}",
                             id={
                                 "type": "formtext-class-definition",
-                                "index": idx
+                                "index": idx,
+                                # "eq": strEQ,
+                                # "type": strType
                             }
                         )
                     ]
@@ -647,7 +688,9 @@ def spawnGraph2D(idx, fig, listDictAllFeatures, strEQ, strType, intNDim, strMinD
                     value=None,
                     id={
                         "type": "select-sample-selection-type",
-                        "index": idx
+                        "index": idx,
+                        # "eq": strEQ,
+                        # "type": strType
                     }
                 ))
             ], width=1
@@ -656,7 +699,9 @@ def spawnGraph2D(idx, fig, listDictAllFeatures, strEQ, strType, intNDim, strMinD
                 dcc.DatePickerSingle(
                     id={
                         "type": "select-sample-selection-datepicker",
-                        "index": idx
+                        "index": idx,
+                        # "eq": strEQ,
+                        # "type": strType
                     },
                     min_date_allowed=strMinDate,
                     max_date_allowed=strMaxDate,
@@ -670,14 +715,23 @@ def spawnGraph2D(idx, fig, listDictAllFeatures, strEQ, strType, intNDim, strMinD
                 width=2,
                 className="dash-bootstrap"
             )
-            ], style={"margin": "5px"}),
+            ], style={"margin": "5px"})
+        ]
+    else:
+        selectSamplesRow = []
+
+
+    return dbc.Container(
+            selectSamplesRow + [
             dbc.Row([
                 dcc.Graph(
                     id={
-                        "type": "graph-2d",
-                        "index": idx
+                        "type": "graph",
+                        "index": idx,
+                        # "eq": strEQ,
+                        # "type": strType
                     },
-                    figure=fig,
+                    figure=createFigTemplate(kind),
                     config=dict(
                         showTips=True, responsive=True, scrollZoom=True,
                         showLink=False, displaylogo=False, watermark=False,
@@ -707,8 +761,10 @@ def spawnGraph2D(idx, fig, listDictAllFeatures, strEQ, strType, intNDim, strMinD
                 align="stretch",
                 no_gutters=True,
                 id={
-                    "type": "row-graph-2d",
-                    "index": idx
+                    "type": "row-graph",
+                    "index": idx,
+                    # "eq": strEQ,
+                    # "type": strType
                 },
             ),
             # dbc.Row(dbc.Col(dbc.Button(fa("fas fa-minus"), color="danger", block=True, outline=True, size="sm", id=f"btn-remove-graph_{idx}"), width=1, className="p-1"), justify="end", align="end"),
@@ -716,8 +772,10 @@ def spawnGraph2D(idx, fig, listDictAllFeatures, strEQ, strType, intNDim, strMinD
                 className="m-3",
                 n_clicks_timestamp=-1,
                 id={
-                    "type": "btn-remove-graph-2d",
-                    "index": idx
+                    "type": "btn-remove-graph",
+                    "index": idx,
+                    # "eq": strEQ,
+                    # "type": strType
                 },
             )
         ], fluid=True, className="pt-2"

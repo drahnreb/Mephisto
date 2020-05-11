@@ -9,12 +9,12 @@ DATA = Path(__file__).resolve().parent.joinpath("data")
 
 
 PLACEHOLDER_EFFECT_CATEGORIES = [
-    {"label": "normal", "value": "class_normal"},
-    {"label": "tool wear", "value": "class_tool_wear"},
-    {"label": "tool failure", "value": "class_tool_failure"}]
+    {"label": "normal", "value": "normal"},
+    {"label": "tool wear", "value": "tool_wear"},
+    {"label": "tool failure", "value": "tool_failure"}]
 PLACEHOLDER_EFFECT_SUB = [
-    {"label": "tool wear solidified", "value": "class_tool_wear_solidified"},
-    {"label": "tool wear through cooling", "value": "class_tool_wear_cooling"}]
+    {"label": "tool wear solidified", "value": "tool_wear_solidified"},
+    {"label": "tool wear through cooling", "value": "tool_wear_cooling"}]
 PLACEHOLDER_CAUSE_CATEGORIES = [
     {"label": "axial speed", "value": "speed"},
     {"label": "cooling below 23°", "value": "cooling"}]
@@ -39,18 +39,22 @@ def queryData(t, col):
     
     return arr
 
-def querySimilarSamples(annotationClass, n=3):
-    """
-        annotationClass is index of a class
-    """
-    #TODO: query: where annotationClass
-    # sample nsize=3
-    d = []
-    data = [[0,13,46,342,543],[1.23,345.5,45.43,124.4,342.4]]
-    for _ in range(n):
-        d.append({'t0': 1588636800021, 'TID': None, 'data': data})
 
-    return d
+def querySimilarSamples(annotatedClass, n=3):
+    """
+        annotatedClass is index of a class
+    """
+    # sample nsize=3
+    data = []
+
+    #TODO: query: where annotatedClass
+    values = [[0,13,46,342,543],[1.23,345.5,45.43,124.4,342.4]]
+    for _ in range(n):
+        data.append({'eq': '', 't0': 1588636800021, 'TID': None, 'values': values})
+
+    store = {'class': annotatedClass, 'data': data}
+
+    return store
 
 
 def queryAnnotationClasses(atype='ecat'):
@@ -90,8 +94,8 @@ def fa(className):
     """A convenience component for adding Font Awesome icons"""
     return html.I(className=className)
 
-def createFig(t=1, col="aaTorque_X2"):
-    #"aaCurr_X2"
+def updateFig(data, col="aaTorque_X2"):
+    # layout = dict()
     if t:
         p = DATA.joinpath("p1.parquet")
     else:
@@ -99,7 +103,55 @@ def createFig(t=1, col="aaTorque_X2"):
         
     df = pd.read_parquet(p)
     feat = df.loc[:, col]
-    fig = feat.iplot(kind='scatter', mode='markers+lines', size=3, asFigure=True)
+
+    feat.iplot(
+            kind='scatter',
+            mode='markers+lines',
+            size=5,
+            #layout=layout,
+            asFigure=True)
+
+    return fig
+
+
+def createFigTemplate(kind):
+    if kind == 'scatter3d':
+        dictHideOptions = dict(visible=False, showgrid=False, zeroline=False, showline=False, autorange=True, showticklabels=False)
+        placeholder = pd.DataFrame([{'x':1, 'y':1, 'z':1, 'text': "Select sample(s) of two features"}])
+        fig = placeholder.iplot(
+                kind='scatter3d',
+                mode='markers+lines'+'+text',
+                size=1,
+                x='x',
+                y='y',
+                z='z',
+                text='text',
+                textposition="bottom center",
+                asFigure=True)
+        fig.layout.scene = {
+            'xaxis': dictHideOptions,
+            'yaxis': dictHideOptions,
+            'zaxis': dictHideOptions
+        }
+    else:
+        dictHideOptions = dict(showgrid=False, zeroline=False, showline=False, autorange=True, showticklabels=False)
+        
+        placeholder = pd.DataFrame([1])
+        fig = placeholder.iplot(
+                kind='scatter',
+                mode='markers+lines'+'+text',
+                size=1,
+                text=["Select sample(s) of a feature"],
+                textposition="bottom center",
+                asFigure=True)
+        fig.layout.xaxis = dictHideOptions
+        fig.layout.yaxis = dictHideOptions
+
+    # do some polishing
+    fig.data[0].update(
+        textfont=dict(size=30)
+    )
+    fig.layout.update(hovermode=False)
     
     return fig
 
