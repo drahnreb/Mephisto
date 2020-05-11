@@ -63,9 +63,9 @@ def register_callbacks(app):
         listDictAllFeatures = meta.get('schema')
         strEQ = meta.get('eq')
         strType = meta.get('dataType')
-        intNDim = dat.shape[0]
-        strMinDate = str(min(dat))[:-3]
-        strMaxDate = str(max(dat))[:-3]
+        intTotSamples = dat.shape[0]
+        dtMinDate = min(dat)
+        dtMaxDate = max(dat)
 
         if create2D > create3D:
             newGraph = spawnGraph(intGraphIdx,
@@ -73,9 +73,9 @@ def register_callbacks(app):
                 listDictAllFeatures=listDictAllFeatures,
                 strEQ=strEQ,
                 strType=strType,
-                intNDim=intNDim,
-                strMinDate=strMinDate,
-                strMaxDate=strMaxDate
+                intTotSamples=intTotSamples,
+                dtMinDate=dtMinDate,
+                dtMaxDate=dtMaxDate
             )
         else:
             newGraph = spawnGraph(intGraphIdx,
@@ -83,9 +83,9 @@ def register_callbacks(app):
                 listDictAllFeatures=listDictAllFeatures,
                 strEQ=strEQ,
                 strType=strType,
-                intNDim=intNDim,
-                strMinDate=strMinDate,
-                strMaxDate=strMaxDate
+                intTotSamples=intTotSamples,
+                dtMinDate=dtMinDate,
+                dtMaxDate=dtMaxDate
             )
             
         listGraphSpaceChildren.insert(0, newGraph)

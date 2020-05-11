@@ -1,4 +1,5 @@
 from datetime import datetime as dt
+from datetime import timedelta
 import dash_bootstrap_components as dbc
 import dash_core_components as dcc
 import dash_html_components as html
@@ -10,7 +11,7 @@ from dash.exceptions import PreventUpdate
 __version__ = "1.0"
 PROJ_URL = "https://drahnreb.github.io/Mephisto"
 PROJ_ISSUE_URL = "https://github.com/drahnreb/Mephisto/issues/"
-PERSISTANCE = "memory" # session
+PERSISTENCE = "memory" # session
 
 def initHead():
     """ 
@@ -51,36 +52,6 @@ def initSelectData():
         """ create more viewable space.
             collapse button and encapsulation
         """
-        
-        def _createConnectorTab():
-            """ data connector status """
-            return dbc.Tab(
-                label="Data Connector status",
-                disabled=True,
-                children=[
-                    dcc.Store(
-                        data=[],
-                        id="store-data-connector",
-                        storage_type=PERSISTANCE,
-                        modified_timestamp=-1
-                    )
-                    #dbc.Badge("", color="light", id="badge-connector")
-                ],
-                id='tab-data-connectors'
-            )
-
-        def _createExportTab():
-            """ export data tab """
-            return dbc.Tab(
-                label="Export Data",
-                disabled=True,
-                children=[
-                    dbc.Row(dbc.Col(
-                        dbc.Button("Export", outline=True, color="success", id="btn-selectData-export"), width=2),
-                            justify="center", align="center")
-                ],
-                id='tab-export-data'
-            )
             
         def _createLoadDataTab():
             """ load data tab """
@@ -132,7 +103,7 @@ def initSelectData():
                             dbc.Row(dbc.Col(dbc.Label('Connect to cloud data:', style={"font-weight": "bold"}))),
                             dbc.Row(dbc.Col(dbc.Button(
                                 "DataLake or BlobStorage",
-                                color="secondary",
+                                color="light",
                                 id="btn-cloud-connector-blob",
                                 disabled=True),
                                 width=3), align="center", justify="center")
@@ -153,6 +124,39 @@ def initSelectData():
 
                     ]
                 )
+            )
+        
+        def _createConnectorTab():
+            """ data connector status """
+            return dbc.Tab(
+                label="Data Connectors: 0",
+                disabled=False,
+                children=[
+                    dbc.Row(
+                        children=[],
+                        id="div-data-connector",
+                    ),
+                    dcc.Store(
+                        data=[],
+                        id="store-data-connector",
+                        storage_type=PERSISTENCE,
+                        modified_timestamp=-1
+                    ),
+                ],
+                id='tab-data-connectors'
+            )
+
+        def _createExportTab():
+            """ export data tab """
+            return dbc.Tab(
+                label="Export Data",
+                disabled=False,
+                children=[
+                    dbc.Row(dbc.Col(
+                        dbc.Button("Export", outline=True, color="success", id="btn-selectData-export"), width=2),
+                            justify="center", align="center")
+                ],
+                id='tab-export-data'
             )
 
         return dbc.Col([
@@ -216,6 +220,24 @@ def initWorkspace():
         
     def _createAnnotationSpace():
         """ annotation class space """
+
+        def _createToolbar():
+            """ annotation toolset """
+            return dbc.Container([
+                # dbc.Row([
+                #     dbc.Col(dbc.Button(children=[fa("far fa-square"), " Lasso"], outline=True, block=True, color="secondary", id="btn-tools-lasso", className="p-1"), xl=4, className="p-1"),
+                #     dbc.Col(dbc.Button(children=[fa("fas fa-mouse-pointer"), " Point"], outline=True, block=True, color="secondary", id="btn-tools-point", className="p-1"), xl=4, className="p-1"),
+                #     dbc.Col(dbc.Button(children=[fa("fas fa-grip-lines-vertical"), " Range"], outline=True, block=True, color="secondary", id="btn-tools-range", className="p-1"), xl=4, className="p-1")
+                # ], className="m-1", justify="between"),
+                # html.Div(className="clearfix visible-xs-block"),
+                dbc.Row([
+                    # dbc.Col(dbc.Button(children=[fa("fas fa-chart-line"), "  Trend-Line"], outline=True, block=True, color="secondary", id="btn-tools-line", className="p-1"), xl=6, className="p-1"),
+                    dbc.Col(dbc.Button(children=[fa("fas fa-link"), "  multivariate Linking"], outline=True, block=True,
+                                       color="secondary", n_clicks_timestamp=-1, n_clicks=0, id="btn-tools-linker", active=False, className="p-1"), className="p-1")
+                    # ,xl=6
+                ], className="m-1", justify="between"),
+            ], fluid=True, id="div-toolbar", style={'position': 'sticky', 'bottom': 0, "z-index": 5})
+            
         def _createEffectView():
             return [
                 dbc.Col(
@@ -232,7 +254,7 @@ def initWorkspace():
                                 clearable=True,
                                 multi=False,
                                 persistence=True,
-                                persistence_type=PERSISTANCE
+                                persistence_type=PERSISTENCE
                             )
                         ])),
                         # definition of new effect
@@ -244,7 +266,7 @@ def initWorkspace():
                                         valid=False,
                                         invalid=False,
                                         persistence=True,
-                                        persistence_type=PERSISTANCE,
+                                        persistence_type=PERSISTENCE,
                                         id="input-new-effect-category"
                                     ),
                                     dbc.FormText("Try to select from available effects. Care about naming conventions!"),
@@ -269,7 +291,7 @@ def initWorkspace():
                                     clearable=True,
                                     multi=True,
                                     persistence=True,
-                                    persistence_type=PERSISTANCE)
+                                    persistence_type=PERSISTENCE)
                             ]
                         ), id="div-effect-subcategory", style={"visibility": "hidden"}),
                         # definition of new effect types
@@ -281,7 +303,7 @@ def initWorkspace():
                                         valid=False,
                                         invalid=False,
                                         persistence=True,
-                                        persistence_type=PERSISTANCE,
+                                        persistence_type=PERSISTENCE,
                                         id="input-new-effect-subcategory"
                                     ),
                                     dbc.FormText("Try to select from available sub-effects. Care about naming conventions!"),
@@ -300,7 +322,7 @@ def initWorkspace():
                                 data={'class': '', 'data': []},
                                 id="store-similar-effect-samples",
                                 modified_timestamp=-1,
-                                storage_type=PERSISTANCE
+                                storage_type=PERSISTENCE
                             ),
                             dbc.Col([
                                 html.Hr(),
@@ -330,7 +352,7 @@ def initWorkspace():
                             clearable=True,
                             multi=False,
                             persistence=True,
-                            persistence_type=PERSISTANCE
+                            persistence_type=PERSISTENCE
                         )
                     ])),
                     # definition of new effect
@@ -342,7 +364,7 @@ def initWorkspace():
                                     valid=False,
                                     invalid=False,
                                     persistence=True,
-                                    persistence_type=PERSISTANCE,
+                                    persistence_type=PERSISTENCE,
                                     id="input-new-cause-category"
                                 ),
                                 dbc.FormText("Try to select from available cause. Care about naming conventions!"),
@@ -367,7 +389,7 @@ def initWorkspace():
                                 clearable=True,
                                 multi=True,
                                 persistence=True,
-                                persistence_type=PERSISTANCE)
+                                persistence_type=PERSISTENCE)
                         ]
                     ), id="div-cause-subcategory", style={"visibility": "hidden"}),
                     # definition of new effect types
@@ -379,7 +401,7 @@ def initWorkspace():
                                     valid=False,
                                     invalid=False,
                                     persistence=True,
-                                    persistence_type=PERSISTANCE,
+                                    persistence_type=PERSISTENCE,
                                     id="input-new-cause-subcategory"
                                 ),
                                 dbc.FormText("Try to select from available sub-causes. Care about naming conventions!"),
@@ -398,7 +420,7 @@ def initWorkspace():
                             data={'class': '', 'data': []},
                             id="store-similar-cause-samples",
                             modified_timestamp=-1,
-                            storage_type=PERSISTANCE
+                            storage_type=PERSISTENCE
                         ),
                         dbc.Col([
                             html.Hr(),
@@ -411,24 +433,6 @@ def initWorkspace():
                     ])
                 ])
             ]
-
-
-        def _createToolbar():
-            """ annotation toolset """
-            return dbc.Container([
-                # dbc.Row([
-                #     dbc.Col(dbc.Button(children=[fa("far fa-square"), " Lasso"], outline=True, block=True, color="secondary", id="btn-tools-lasso", className="p-1"), xl=4, className="p-1"),
-                #     dbc.Col(dbc.Button(children=[fa("fas fa-mouse-pointer"), " Point"], outline=True, block=True, color="secondary", id="btn-tools-point", className="p-1"), xl=4, className="p-1"),
-                #     dbc.Col(dbc.Button(children=[fa("fas fa-grip-lines-vertical"), " Range"], outline=True, block=True, color="secondary", id="btn-tools-range", className="p-1"), xl=4, className="p-1")
-                # ], className="m-1", justify="between"),
-                # html.Div(className="clearfix visible-xs-block"),
-                dbc.Row([
-                    # dbc.Col(dbc.Button(children=[fa("fas fa-chart-line"), "  Trend-Line"], outline=True, block=True, color="secondary", id="btn-tools-line", className="p-1"), xl=6, className="p-1"),
-                    dbc.Col(dbc.Button(children=[fa("fas fa-link"), "  multivariate Linking"], outline=True, block=True,
-                                       color="secondary", n_clicks_timestamp=-1, n_clicks=0, id="btn-tools-linker", active=False, className="p-1"), className="p-1")
-                    # ,xl=6
-                ], className="m-1", justify="between"),
-            ], fluid=True, id="div-toolbar", style={'position': 'sticky', 'bottom': 0, "z-index": 5})
         
         return [
             dbc.Row(_createToolbar()),
@@ -601,128 +605,230 @@ def spawnDataConnector(strConnectorDesc, idx):
         )
 
 
-def spawnGraph(idx, kind, listDictAllFeatures, strEQ, strType, intNDim, strMinDate, strMaxDate):
+def spawnGraph(idx, kind, listDictAllFeatures, strEQ, strType, intTotSamples, dtMinDate, dtMaxDate):
     """ 
         fig: json with link to aggregate or pre-cached dataframe to load into plotly graph
         meta: schema with suplimental information
     """
-    if kind == 'scatter':
-        selectSamplesRow = [
-        dbc.Row(
-            dbc.FormText(
-                f"Machine EQ: {strEQ}. Date Range: {strMinDate} - {strMaxDate}. Data Source: {strType}.",
-                id={
-                    "type": "formtext-feature",
-                    "index": idx,
-                    # "eq": strEQ,
-                    # "type": strType
-                }
-            )
-        ),
-        dbc.Row([
+    # calculate end date for datetimerange
+    strMaxDate = str(dtMaxDate)
+    diff = dtMaxDate - dtMinDate
+    if not diff.days:
+        strMaxDate = str(dtMaxDate + timedelta(days=1))
+    strMinDate = str(dtMinDate)
+
+    if kind == 'scatter3d' and len(listDictAllFeatures) >= 2:
+        intHalfOfFeatures = len(listDictAllFeatures) // 2
+
+        listComponentSelectFeature = [
             dbc.Col(
-                dbc.FormGroup([
-                    dbc.Select(
-                        id={
-                            "type": "select-feature",
-                            "index": idx,
-                            # "eq": strEQ,
-                            # "type": strType
-                        },
-                        options=listDictAllFeatures
-                    ),
-                ]),
-                width=6,
-            ),
-            dbc.Col(
-                dbc.Button(
-                    fa("fas fa-plus"),
-                    color="secondary",
-                    id={
-                        "type": "btn-add-feature",
-                        "index": idx,
-                        # "eq": strEQ,
-                        # "type": strType
-                    }
-                ),
-                width=1
-            ),
-            dbc.Col(
-                dbc.FormGroup(
-                    [
-                        dbc.Input(
-                            placeholder="no. of sample(s)",
-                            valid=None,
+                width=7,
+                style={"padding-left": "0px"},
+                children=[
+                    dbc.Row(dbc.Col(
+                        dcc.Dropdown(
+                            options=listDictAllFeatures[:intHalfOfFeatures],
+                            value=[],
+                            multi=True,
+                            persistence_type=PERSISTENCE,
+                            placeholder='Select feature(s) on y-Axis',
                             id={
-                                "type": "inp-class-definition",
-                                "index": idx,
-                                # "eq": strEQ,
-                                # "type": strType
-                            }
-                        ),
-                        # SPAWN
-                        dbc.FormText(
-                            f"of total: {intNDim}",
-                            id={
-                                "type": "formtext-class-definition",
-                                "index": idx,
-                                # "eq": strEQ,
-                                # "type": strType
-                            }
+                                "type": "dropdown-select-feature-Y",
+                                "index": idx
+                            },
                         )
-                    ]
-                ),
-                width=2
-            ),
-            dbc.Col([
-                dbc.Row([
-                    dbc.Button(fa("fas fa-redo-alt"), outline=True, color="info", className="mr-1", size="sm"),
-                    dbc.Label("  Choose:"),
-                ]),
-                dbc.Row(dbc.RadioItems(
-                    options=[
-                        # als toolbox {"label": "iid", "value": "iid"},
-                        {"label": "randomly", "value": "random"},  # uniform distribution
-                        {"label": "by sequence", "value": "sequence"}
-                    ],
-                    value=None,
-                    id={
-                        "type": "select-sample-selection-type",
-                        "index": idx,
-                        # "eq": strEQ,
-                        # "type": strType
-                    }
-                ))
-            ], width=1
-            ),
-            dbc.Col(
-                dcc.DatePickerSingle(
-                    id={
-                        "type": "select-sample-selection-datepicker",
-                        "index": idx,
-                        # "eq": strEQ,
-                        # "type": strType
-                    },
-                    min_date_allowed=strMinDate,
-                    max_date_allowed=strMaxDate,
-                    display_format="DD.MM.YYYY",
-                    placeholder="Start Date",
-                    clearable=True,
-                    with_portal=True,
-                    first_day_of_week=1
-                ),
-                style={"visibility": "visible"},
-                width=2,
-                className="dash-bootstrap"
+                    )),
+                    dbc.Row(dbc.Col(
+                        dcc.Dropdown(
+                            options=listDictAllFeatures[intHalfOfFeatures:],
+                            value=[],
+                            multi=True,
+                            persistence_type=PERSISTENCE,
+                            placeholder='Select feature(s) on z-Axis',
+                            id={
+                                "type": "dropdown-select-feature-Z",
+                                "index": idx
+                            },
+                        )
+                    ), style={"margin-top": "5px"}),
+                ]
             )
-            ], style={"margin": "5px"})
         ]
+
     else:
-        selectSamplesRow = []
+        listComponentSelectFeature = [
+            dbc.Col(
+                width=7,
+                style={"padding-left": "0px"},
+                children=[
+                    dcc.Dropdown(
+                        options=listDictAllFeatures,
+                        value=[],
+                        multi=True,
+                        persistence_type=PERSISTENCE,
+                        placeholder='Select feature(s) on y-Axis',
+                        id={
+                            "type": "dropdown-select-feature-Y",
+                            "index": idx
+                        },
+                    )
+                ]
+            )
+        ]
 
+    return dbc.Container([
+            dbc.Row(
+                [
+                    dbc.Col([
+                        dbc.Row(
+                            dbc.FormText(
+                                f"Machine EQ: {strEQ}.\t Date Range: {dtMinDate} - {dtMaxDate}.\t Data Source: {strType}.\t Total samples: {intTotSamples}",
+                                id={
+                                    "type": "formtext-data",
+                                    "index": idx,
+                                    # "eq": strEQ,
+                                    # "type": strType
+                                }
+                            ),
+                            align="stretch",
+                            no_gutters=True,
+                        ),
+                        dbc.Row(
+                            listComponentSelectFeature + [
+                            dbc.Col(
+                                width=5,
+                                style={"padding-right": "0px"},
+                                id="div-choose-samples",
+                                children=[
+                                    dbc.Row([
+                                        dbc.Col(
+                                            width=3,
+                                            children=[
+                                                dbc.FormGroup([
+                                                    dbc.Input(
+                                                        placeholder="no. of sample(s)",
+                                                        valid=None,
+                                                        id={
+                                                            "type": "inp-class-definition",
+                                                            "index": idx,
+                                                            # "eq": strEQ,
+                                                            # "type": strType
+                                                        },
+                                                        max=intTotSamples,
+                                                        min=0
+                                                    ),
+                                                    # dbc.FormText(
+                                                    #     f"of total: {intTotSamples}",
+                                                    #     id={
+                                                    #         "type": "formtext-class-definition",
+                                                    #         "index": idx,
+                                                    #         # "eq": strEQ,
+                                                    #         # "type": strType
+                                                    #     }
+                                                    # )
+                                                ])
+                                            ],
+                                            style={"padding": "0px"},
+                                        ),
+                                        dbc.Col(
+                                            width=6,
+                                            style={"visibility": "visible"},
+                                            className="dash-bootstrap",
+                                            children=[
+                                                dcc.DatePickerRange(
+                                                    id={
+                                                        "type": "select-sample-selection-datepicker",
+                                                        "index": idx,
+                                                        # "eq": strEQ,
+                                                        # "type": strType
+                                                    },
+                                                    min_date_allowed=strMinDate,
+                                                    max_date_allowed=strMaxDate,
+                                                    display_format="DD.MM.YYYY",
+                                                    clearable=True,
+                                                    with_portal=False,
+                                                    first_day_of_week=1,
+                                                    start_date_placeholder_text="Start Date",
+                                                    end_date_placeholder_text="End Date",
+                                                    persistence_type=PERSISTENCE,
+                                                    updatemode='singledate'
+                                                )
+                                            ]
+                                        ),
+                                        dbc.Col(
+                                            width=2,
+                                            children=dbc.Input(
+                                                placeholder="hh:mm",
+                                                type="text",
+                                                max=23,
+                                                min=0,
+                                                maxLength=5,
+                                                pattern="^(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$",
+                                                persistence_type=PERSISTENCE
+                                            ),
+                                            style={"padding-left": "0px"},
+                                        ),
+                                        dbc.Col(
+                                            width=1,
+                                            children=[
+                                                dbc.Button(fa("far fa-trash-alt"), outline=True, color="danger", className="mr-1", size="sm"),
+                                            ], 
+                                            style={"padding": "0px"},
+                                        )
+                                    ]
+                                ),
+                                dbc.Row([
+                                    dbc.Col(
+                                        dbc.FormGroup(
+                                            [
+                                                dbc.Label(
+                                                    "Choose: ",
+                                                    html_for="choose-radios-row",
+                                                    width=1,
+                                                    style={"padding": "0px"}
+                                                ),
+                                                dbc.Col(
+                                                    dbc.RadioItems(
+                                                        inline=True,
+                                                        id={
+                                                            "type": "select-sample-selection-type",
+                                                            "index": idx,
+                                                            # "eq": strEQ,
+                                                            # "type": strType
+                                                        },
+                                                        options=[
+                                                            # als toolbox {"label": "iid", "value": "iid"},
+                                                            {"label": "randomly ~U(0,n)", "value": "random"},  # uniform distribution
+                                                            {"label": "by sequence", "value": "sequence"}
+                                                        ],
+                                                        value=None,
+                                                    ),
+                                                    width=10,
+                                                ),
+                                            ],
+                                            row=True,
+                                            style={"margin": "0px"},
 
-    return dbc.Container(
-            selectSamplesRow + [
+                                        ),
+                                        style={"padding": "0px"},
+                                    ),
+                                    dbc.Col(
+                                        width=1,
+                                        children=[
+                                            dbc.Button(fa("fas fa-redo-alt"), outline=True, color="info", className="mr-1", size="sm"),
+                                        ], 
+                                        style={"padding": "0px", "margin-bottom": "5px"},
+                                        align='center',
+                                    )
+                                ])
+                            ])
+                        ],
+                        align="stretch",
+                        style={"margin": "0px"},
+                        )
+                    ], style={"padding": "0px"})
+                ], no_gutters=True
+            ),
             dbc.Row([
                 dcc.Graph(
                     id={
