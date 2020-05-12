@@ -96,12 +96,11 @@ def fa(className):
     """A convenience component for adding Font Awesome icons"""
     return html.I(className=className)
 
-def updateFig(data, col="aaTorque_X2"):
+def updateFig(col="aaTorque_X2"):
     # layout = dict()
-    if t:
-        p = DATA.joinpath("p1.parquet")
-    else:
-        p = DATA.joinpath("p2.parquet")
+    p = DATA.joinpath("p1.parquet")
+    # else:
+    #     p = DATA.joinpath("p2.parquet")
         
     df = pd.read_parquet(p)
     feat = df.loc[:, col]
@@ -160,7 +159,7 @@ def createFigTemplate(kind):
     return fig
 
 
-def updateFig(surface=True):
+def updateFig3D(surface=True):
     p = DATA.joinpath('p3.parquet')
     df = pd.read_parquet(p)
 
@@ -269,11 +268,6 @@ def updateFig(surface=True):
     figure = dict(data=data, layout=layout)
     # py.iplot(figure)
     return figure
-
-
-
-
-
 
 
 def fetch_data(data, dim="2D"):

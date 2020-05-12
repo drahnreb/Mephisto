@@ -6,7 +6,7 @@ import dash_bootstrap_components as dbc
 import dash_html_components as html
 
 from dash.exceptions import PreventUpdate
-from utils import createFigTemplate, queryData, getUploadPath, queryAnnotationClasses, storeAnnotationClasses, fa, querySimilarSamples
+from utils import createFigTemplate, queryData, getUploadPath, queryAnnotationClasses, storeAnnotationClasses, fa, querySimilarSamples, updateFig
 from layout import spawnGraph, spawnSimilarSamples, spawnDataConnector
 import numpy as np
 
@@ -96,12 +96,14 @@ def register_callbacks(app):
 
 
     @app.callback(
-        Output({'type': 'graph-2d', 'index': MATCH}, 'config'),
-        [Input({'type': 'select-feature', 'index': MATCH}, 'value')],
-        [State({'type': 'select-feature', 'index': MATCH}, 'options'),
-         State({'type': 'graph-2d', 'index': MATCH}, 'config')]
+        [Output({'type': 'graph', 'index': MATCH}, 'figure'),
+         Output({'type': 'graph', 'index': MATCH}, 'config')],
+        [Input({'type': 'dropdown-select-feature-Y', 'index': MATCH}, 'value'),
+         Input({'type': 'dropdown-select-feature-Z', 'index': MATCH}, 'value')],
+        [State({'type': 'dropdown-select-feature-Y', 'index': MATCH}, 'options'),
+         State({'type': 'graph', 'index': MATCH}, 'config')]
     )
-    def changeSaveFilename(strSelectedValue, listDictAllFeatures, config):
+    def changeGraph(strSelectedValuesY, strSelectedValuesZ, listDictAllFeatures, config):
         if not strSelectedValue:
             raise PreventUpdate
         else:
@@ -110,9 +112,13 @@ def register_callbacks(app):
                 'format': 'png',
                 'filename': f"{strSelectedValue}-{strLabel}_Mephisto.png",
             }
-                
-        return config
 
+        if strSelectedValue not in listDictAllFeatures:
+            fig = updateFig(col=strSelectedValue)
+        
+        fig = updateFig3D()
+                
+        return fig, config
 
     @app.callback(
         [Output('loading-workspace-save', 'children'),

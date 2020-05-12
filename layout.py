@@ -664,6 +664,7 @@ def spawnGraph(idx, kind, listDictAllFeatures, strEQ, strType, intTotSamples, dt
         ]
 
     else:
+        intTotSamples = 1
         listComponentSelectFeature = [
             dbc.Col(
                 width=7,
