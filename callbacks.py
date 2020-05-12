@@ -6,7 +6,7 @@ import dash_bootstrap_components as dbc
 import dash_html_components as html
 
 from dash.exceptions import PreventUpdate
-from utils import createFigTemplate, queryData, queryAnnotationClasses, storeAnnotationClasses, fa, querySimilarSamples
+from utils import createFigTemplate, queryData, getUploadPath, queryAnnotationClasses, storeAnnotationClasses, fa, querySimilarSamples
 from layout import spawnGraph, spawnSimilarSamples, spawnDataConnector
 import numpy as np
 
@@ -117,10 +117,10 @@ def register_callbacks(app):
     @app.callback(
         [Output('loading-workspace-save', 'children'),
          Output('alert-saved', 'is_open'),
-         Output('tab-export-data', 'disabled')],
+         Output('tab-report-data', 'disabled')],
         [Input('btn-workspace-save', 'n_clicks')],
         [State('btn-tools-linker', 'active'),
-         State('tab-export-data', 'disabled')
+         State('tab-report-data', 'disabled')
         #[State({'type': 'graph-2d', 'index': MATCH}, 'clickData'), #Data from latest click event.
         # State({'type': 'graph-2d', 'index': MATCH}, 'clickAnnotationData'), #Data from latest click annotation event.
         # State({'type': 'graph-2d', 'index': MATCH}, 'selectedData') #Data from latest select event.
@@ -355,30 +355,66 @@ def register_callbacks(app):
 
     @app.callback(
         [Output('tab-data-connectors', 'children'),
+         Output('tab-data-connectors', 'label'),
          Output('tab-data-connectors', 'disabled')],
-        [Input('store-data-connector', 'modified_timestamp')],
-        [State('tab-data-connectors', 'children'),
+        [Input('store-data-connectors', 'modified_timestamp')],
+        [State('div-data-connectors', 'children'),
          State('tab-data-connectors', 'disabled'),
-         State('store-data-connector', 'data')]
+         State('store-data-connectors', 'data')]
     )
-    def spawnData(newConnector, listAvailableDataConnectors, disabled, listMetainfo):
-        if not listMetainfo or not newConnector:
+    def spawnData(newConnector, listAvailableDataConnectors, disabled, dictMetainfo):
+        if not dictMetainfo or not newConnector:
             raise PreventUpdate
 
-        for idx, m in enumerate(listMetainfo):
-            listAvailableDataConnectors.append(spawnDataConnector(f"EQ: {m['eq']}\n"+f"{m['desc']}", idx=idx))
+        availIdx = [comp for comp in listAvailableDataConnectors] #['id']['index']
+        for k, m in dictMetainfo.items():
+            # if m not in availIdx:
+            listAvailableDataConnectors.append(
+                spawnDataConnector(f"EQ: {m['eq']}\n"+f"{m['dataType']}", idx=k)
+            )
 
         nConnectors = len(listAvailableDataConnectors)
 
         if nConnectors:
-            listAvailableDataConnectors = dbc.Row(
-                [listAvailableDataConnectors]
-            )
-            disbaled = False
+            disabled = False
         else:
             disabled = True
 
-        return listAvailableDataConnectors, disabled
+        return listAvailableDataConnectors, f"Data Connectors: {nConnectors}", disabled
+
+
+    @app.callback(
+         Output('store-data-connectors', 'data'),
+        [Input('upload-data', 'fileNames')],
+        [State('store-data-connectors', 'data')]
+    )
+    def uploadData(fileNames, dictMetainfo):
+        if fileNames is not None and len(fileNames):
+            fileNames = set(fileNames)
+            maxIdx = max(set(dictMetainfo), default=0)
+            # meta = dict(
+            #     eq="404000500065",
+            #     dataType="NC",
+            #     schema=[
+            #         # based on meta information derived from schema /dataframe header
+            #         {"label": "Antriebsmomenten-Sollwert einer Achse/Spindel an X2",
+            #          "value": "aaTorque_X2"},
+            #         {"label": "Antriebsauslastung einer Achse/Spindel an X2",
+            #          "value": "aaLoad_X2"},
+            #         {"label": "Antriebsstrom-Istwert einer Achse/Spindel an X2",
+            #          "value": "aaCurr_X2"},
+            #         {"label": "Antriebswirkleistung einer Achse/Spindel an X2",
+            #          "value": "aaPower_X2"},
+            #     ]
+            # )
+
+            [dictMetainfo.update(
+                {maxIdx+n: {'eq': '404000500065', 'dataType': 'NC', 'path': str(getUploadPath() / fn)}}) for n, fn in enumerate(fileNames)]
+
+            return dictMetainfo
+
+        else:
+            return dictMetainfo
 
 
 #anything uploading??

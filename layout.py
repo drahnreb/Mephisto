@@ -1,3 +1,4 @@
+import dash_uploader as du
 from datetime import datetime as dt
 from datetime import timedelta
 import dash_bootstrap_components as dbc
@@ -5,13 +6,14 @@ import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, State, Output
 from utils import fa, queryAnnotationClasses, createFigTemplate
+import uuid
 
 from dash.exceptions import PreventUpdate
 
 __version__ = "1.0"
 PROJ_URL = "https://drahnreb.github.io/Mephisto"
 PROJ_ISSUE_URL = "https://github.com/drahnreb/Mephisto/issues/"
-PERSISTENCE = "memory" # session
+PERSISTENCE = "local" # session memory local
 
 def initHead():
     """ 
@@ -41,7 +43,7 @@ def initHead():
             html.Hr()
         ],
         className="sticky-top",
-        style={"background": "white", "z-index": 999}
+        style={"background": "white", "zIndex": 999}
     )
 
 
@@ -63,32 +65,32 @@ def initSelectData():
                         # upload local data
                         dbc.Col(
                             [
-                                dbc.Label('Upload local data:', style={"font-weight": "bold"}),
-                                dcc.Upload(
-                                    id='upload-data',
-                                    children=html.Div([
-                                        'Drag and Drop or ',
-                                        html.A('Select Files')
-                                    ]),
-                                    style={
+                                dbc.Label('Upload local data:', style={"fontWeight": "bold"}),
+                                du.Upload(
+                                    text="Drag and Drop here or click to select files to upload",
+                                    text_completed='Completed: ',
+                                    pause_button=True,
+                                    cancel_button=True,
+                                    max_file_size=1800,  # 1800 Mb
+                                    css_id='upload-data',
+                                    default_style={
                                         'width': '100%',
-                                        'height': '60px',
-                                        'lineHeight': '60px',
+                                        'minHeight': '50px',
+                                        'lineHeight': '50px',
                                         'borderWidth': '1px',
                                         'borderStyle': 'dashed',
                                         'borderRadius': '5px',
                                         'textAlign': 'center',
-                                        'margin': '10px'
+                                        'margin': '5px'
                                     },
-                                    # Allow multiple files to be uploaded
-                                    multiple=True
+                                    filetypes=['parquet', 'csv', 'tsv', 'txt']
                                 ),
                             ],
                             # style={"border-right": "1px grey dash"},
                         ),
                         # connect to local database
                         dbc.Col([
-                            dbc.Row(dbc.Col(dbc.Label('Connect to local database:', style={"font-weight": "bold"}))),
+                            dbc.Row(dbc.Col(dbc.Label('Connect to local database:', style={"fontWeight": "bold"}))),
                             dbc.Row(dbc.Col(dbc.Button(
                                 "Local Database (SciDB/PostgreSQL)",
                                 color="secondary",
@@ -100,7 +102,7 @@ def initSelectData():
                         ),
                         # setup new cloud connections
                         dbc.Col([
-                            dbc.Row(dbc.Col(dbc.Label('Connect to cloud data:', style={"font-weight": "bold"}))),
+                            dbc.Row(dbc.Col(dbc.Label('Connect to cloud data:', style={"fontWeight": "bold"}))),
                             dbc.Row(dbc.Col(dbc.Button(
                                 "DataLake or BlobStorage",
                                 color="light",
@@ -113,7 +115,7 @@ def initSelectData():
                         # setup stream real-time connection
                         dbc.Col([
                             dbc.Row(dbc.Col(
-                                dbc.Label('Connect to near-real-time data stream:', style={"font-weight": "bold"}))),
+                                dbc.Label('Connect to near-real-time data stream:', style={"fontWeight": "bold"}))),
                             dbc.Row(dbc.Col(dbc.Button(
                                 "Connect Stream",
                                 color="light",
@@ -130,39 +132,39 @@ def initSelectData():
             """ data connector status """
             return dbc.Tab(
                 label="Data Connectors: 0",
-                disabled=False,
+                disabled=True,
                 children=[
                     dbc.Row(
                         children=[],
-                        id="div-data-connector",
+                        id="div-data-connectors",
                     ),
                     dcc.Store(
-                        data=[],
-                        id="store-data-connector",
+                        data={},
+                        id="store-data-connectors",
                         storage_type=PERSISTENCE,
-                        modified_timestamp=-1
+                        modified_timestamp=0
                     ),
                 ],
                 id='tab-data-connectors'
             )
 
-        def _createExportTab():
+        def _createReportTab():
             """ export data tab """
             return dbc.Tab(
-                label="Export Data",
-                disabled=False,
+                label="Reporting Dashboard",
+                disabled=True,
                 children=[
                     dbc.Row(dbc.Col(
-                        dbc.Button("Export", outline=True, color="success", id="btn-selectData-export"), width=2),
+                        dbc.Button("Reporting", outline=True, color="success", id="btn-selectData-report"), width=2),
                             justify="center", align="center")
                 ],
-                id='tab-export-data'
+                id='tab-report-data'
             )
 
         return dbc.Col([
             dbc.Collapse(
                 [
-                    dbc.Tabs([_createLoadDataTab()] + [_createConnectorTab()] + [_createExportTab()])
+                    dbc.Tabs([_createLoadDataTab()] + [_createConnectorTab()] + [_createReportTab()])
                 ],
                 id="collapse-data-connection",
                 is_open=True
@@ -236,15 +238,15 @@ def initWorkspace():
                                        color="secondary", n_clicks_timestamp=-1, n_clicks=0, id="btn-tools-linker", active=False, className="p-1"), className="p-1")
                     # ,xl=6
                 ], className="m-1", justify="between"),
-            ], fluid=True, id="div-toolbar", style={'position': 'sticky', 'bottom': 0, "z-index": 5})
-            
+            ], fluid=True, id="div-toolbar", style={'position': 'sticky', 'bottom': 0, "zIndex": 5})
+
         def _createEffectView():
             return [
                 dbc.Col(
                     [
                         # selection from existing classes
                         dbc.Row(dbc.Col([
-                            dbc.Label("Select from existing effects", style={"font-weight": "bold"}),
+                            dbc.Label("Select from existing effects", style={"fontWeight": "bold"}),
                             dcc.Dropdown(
                                 id="dropdown-effect-category-selector",
                                 options=queryAnnotationClasses(atype='ecat'), # Spawned list of dict options {'label': 'l1', 'value': 'v1'} during session
@@ -282,7 +284,7 @@ def initWorkspace():
                         html.Hr(),
                         # specific effect subcategory
                         dbc.Row(dbc.Col([
-                                dbc.Label("Specific effect subcategory", style={"font-weight": "bold"}, id='label-effect-subcategory'),
+                                dbc.Label("Specific effect subcategory", style={"fontWeight": "bold"}, id='label-effect-subcategory'),
                                 dcc.Dropdown(
                                     id="dropdown-effect-subcategory-selector",
                                     options=[], # Spawned list of dict options {'label': 'l1', 'value': 'v1'} during session
@@ -321,12 +323,12 @@ def initWorkspace():
                             dcc.Store(
                                 data={'class': '', 'data': []},
                                 id="store-similar-effect-samples",
-                                modified_timestamp=-1,
+                                modified_timestamp=0,
                                 storage_type=PERSISTENCE
                             ),
                             dbc.Col([
                                 html.Hr(),
-                                dbc.Label("Other samples with same effect", style={"font-weight": "bold"}),
+                                dbc.Label("Other samples with same effect", style={"fontWeight": "bold"}),
                                 dbc.ListGroup(
                                     children=[],
                                     id="listgroup-similar-effect-samples"
@@ -342,7 +344,7 @@ def initWorkspace():
                 dbc.Col([
                     # selection from existing classes
                     dbc.Row(dbc.Col([
-                        dbc.Label("Select from existing causes", style={"font-weight": "bold"}),
+                        dbc.Label("Select from existing causes", style={"fontWeight": "bold"}),
                         dcc.Dropdown(
                             id="dropdown-cause-category-selector",
                             options=queryAnnotationClasses(atype='ccat'), # Spawned list of dict options {'label': 'l1', 'value': 'v1'} during session
@@ -380,7 +382,7 @@ def initWorkspace():
                     html.Hr(),
                     # specific effect subcategory
                     dbc.Row(dbc.Col([
-                            dbc.Label("Specific cause subcategory", style={"font-weight": "bold"}, id='label-cause-subcategory'),
+                            dbc.Label("Specific cause subcategory", style={"fontWeight": "bold"}, id='label-cause-subcategory'),
                             dcc.Dropdown(
                                 id="dropdown-cause-subcategory-selector",
                                 options=[], # Spawned list of dict options {'label': 'l1', 'value': 'v1'} during session
@@ -419,12 +421,12 @@ def initWorkspace():
                         dcc.Store(
                             data={'class': '', 'data': []},
                             id="store-similar-cause-samples",
-                            modified_timestamp=-1,
+                            modified_timestamp=0,
                             storage_type=PERSISTENCE
                         ),
                         dbc.Col([
                             html.Hr(),
-                            dbc.Label(f"Other samples with same cause", style={"font-weight": "bold"}),
+                            dbc.Label(f"Other samples with same cause", style={"fontWeight": "bold"}),
                             dbc.ListGroup(
                                 children=[],
                                 id="listgroup-similar-cause-samples"
@@ -487,7 +489,7 @@ def initWorkspace():
         [
             dbc.Col(
                 children=_createAnnotationSpace(),
-                style={"border-right": "1px grey solid"},  # 'position':'sticky', 'top':0},
+                style={"borderRight": "1px grey solid"},  # 'position':'sticky', 'top':0},
                 # className="sticky-top",
                 width=2,
                 id="div-annotationSpace"
@@ -499,7 +501,7 @@ def initWorkspace():
             )
         ],
         id="div-workspace",
-        style={"z-index": 5}
+        style={"zIndex": 5}
     )
 
 
@@ -507,6 +509,7 @@ def initWorkspace():
 # LAYOUT
 ##########
 def serve_layout():
+    session_id = str(uuid.uuid4())
     return dbc.Container([
         ## div-head-desc
         initHead(),
@@ -515,6 +518,7 @@ def serve_layout():
         ## div-workspace
         # style={"height": "calc(100vh)"}, # stretch row over entire screen #-200px
         initWorkspace(),
+        html.Div(session_id, id='session-id', style={'display': 'none'}),
     ],
         fluid=True
         # style={"height": "100vh"}
@@ -588,21 +592,25 @@ def spawnSimilarSamples(atypeSamplesStore: dict, atype: str = 'effect'):
 
 
 def spawnDataConnector(strConnectorDesc, idx):
-    return dbc.Col([
-                str(strConnectorDesc),
-                dbc.Progress(
-                    value=0,
-                    style={"height": "1px"},
-                    id={
-                        "type": "prg-data-connector",
-                        "index": idx
-                    },
-                )],
-            id={
-                "type": "div-data-connector",
-                "index": idx
-            }
-        )
+    return dbc.Button(
+        [
+            str(strConnectorDesc),
+            # dbc.Progress(
+            #     value=0,
+            #     style={"height": "1px"},
+            #     id={
+            #         "type": "prg-data-connector",
+            #         "index": idx
+            #     },
+            # )
+        ],
+        id={
+            "type": "btn-data-connector",
+            "index": idx
+        },
+        color="secondary",
+        className="mr-1"
+    )
 
 
 def spawnGraph(idx, kind, listDictAllFeatures, strEQ, strType, intTotSamples, dtMinDate, dtMaxDate):

@@ -2,8 +2,10 @@ from pathlib import Path
 import cufflinks as cf
 cf.go_offline()
 import pandas as pd
-
+import base64
+from os import environ as env
 import dash_html_components as html
+import numpy as np
 
 DATA = Path(__file__).resolve().parent.joinpath("data")
 
@@ -133,6 +135,8 @@ def createFigTemplate(kind):
             'yaxis': dictHideOptions,
             'zaxis': dictHideOptions
         }
+        #tight layout
+        fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
     else:
         dictHideOptions = dict(showgrid=False, zeroline=False, showline=False, autorange=True, showticklabels=False)
         
@@ -154,6 +158,122 @@ def createFigTemplate(kind):
     fig.layout.update(hovermode=False)
     
     return fig
+
+
+def updateFig(surface=True):
+    p = DATA.joinpath('p3.parquet')
+    df = pd.read_parquet(p)
+
+    xlist = list(df["x"].dropna())
+    ylist = list(df["y"].dropna())
+
+    del df["x"]
+    del df["y"]
+
+    zlist = []
+    for row in df.iterrows():
+        index, data = row
+        zlist.append(data.tolist())
+
+    if surface:
+        trace1 = dict(
+            type="surface",
+            x=xlist,
+            y=ylist,
+            z=zlist,
+            hoverinfo='x+y+z',
+            lighting={
+                "ambient": 0.95,
+                "diffuse": 0.99,
+                "fresnel": 0.01,
+                "roughness": 0.01,
+                "specular": 0.01,
+            },
+            colorscale=[[0, "rgb(230,245,254)"], [0.4, "rgb(123,171,203)"], [
+                0.8, "rgb(40,119,174)"], [1, "rgb(37,61,81)"]],
+            opacity=0.7,
+            showscale=False,
+            zmax=9.18,
+            zmin=0,
+            scene="scene",
+        )
+
+        trace2 = dict(
+            type='scatter3d',
+            mode='lines',
+            x=xlist,
+            y=[ylist[-1] for i in xlist],
+            z=zlist[-1],
+            hoverinfo='x+y+z',
+            line=dict(color='#444444')
+        )
+
+        data = [trace1, trace2]
+
+    else:
+        trace1 = dict(
+            type="contour",
+            x=ylist,
+            y=xlist,
+            z=np.array(zlist).T,
+            colorscale=[[0, "rgb(230,245,254)"], [0.4, "rgb(123,171,203)"], [
+                0.8, "rgb(40,119,174)"], [1, "rgb(37,61,81)"]],
+            showscale=False,
+            zmax=9.18,
+            zmin=0,
+            line=dict(smoothing=1, color='rgba(40,40,40,0.15)'),
+            contours=dict(coloring='heatmap')
+        )
+
+        data = [trace1]
+
+    layout = dict(
+        autosize=True,
+        font=dict(
+            size=12,
+            color="#CCCCCC",
+        ),
+        margin=dict(
+            t=5,
+            l=5,
+            b=5,
+            r=5,
+        ),
+        showlegend=False,
+        hovermode='closest',
+        scene=dict(
+            aspectmode="manual",
+            aspectratio=dict(x=2, y=5, z=1.5),
+            camera=dict(
+                up=dict(x=0, y=0, z=1),
+                center=dict(x=0.3, y=0.8, z=-0.5),
+                eye=dict(x=2.7, y=2.7, z=0.3)
+            ),
+            xaxis={
+                "showgrid": True,
+                "title": "",
+                "type": "time",
+                "zeroline": False,
+                "categoryorder": 'array',
+                "categoryarray": list(reversed(xlist))
+            },
+            yaxis={
+                "showgrid": True,
+                "title": "",
+                "type": "date",
+                "zeroline": False,
+            },
+        )
+    )
+
+    figure = dict(data=data, layout=layout)
+    # py.iplot(figure)
+    return figure
+
+
+
+
+
 
 
 def fetch_data(data, dim="2D"):
@@ -194,3 +314,5 @@ def create_layout2D():
         'xaxis': dict(automargin=True),
     }
 
+def getUploadPath():
+    return Path(env['UPLOADPATH'])
