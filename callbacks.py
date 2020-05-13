@@ -4,121 +4,356 @@ import dash_html_components as html
 import dash_core_components as dcc
 import dash_bootstrap_components as dbc
 import dash_html_components as html
+from datetime import datetime as dt
+import re
 
 from dash.exceptions import PreventUpdate
-from utils import createFigTemplate, queryData, getUploadPath, queryAnnotationClasses, storeAnnotationClasses, fa, querySimilarSamples, updateFig
+from utils import createFigTemplate, queryTensorData, getUploadPath, queryPictureData, queryAnnotationClasses, storeAnnotationClasses, fa, querySimilarSamples, updatePic, updateScatter, updateScatter3d
 from layout import spawnGraph, spawnSimilarSamples, spawnDataConnector
 import numpy as np
 
 import time
 
-def register_callbacks(app):    
+def register_callbacks(app):
     @app.callback(
         [Output('div-graphSpace', 'children'),
          Output('btn-workspace-save', 'disabled')],
-        [Input('btn-createGraph2D', 'n_clicks_timestamp'),
-         Input('btn-createGraph3D', 'n_clicks_timestamp'),
-         Input({'type': 'btn-remove-graph-2d', 'index': ALL}, 'n_clicks_timestamp')],
-        [State('div-graphSpace', 'children')])
-    def addRemoveGraph(create2D, create3D, listRemove, listGraphSpaceChildren):
-        boolSaveBtnDisabled = True
+        [Input('btn-create-graph', 'n_clicks'),
+         Input({'type': 'btn-remove-graph', 'index': ALL}, 'n_clicks_timestamp')],
+        [State('div-graphSpace', 'children'),
+         State('dropdown-newGraph-coupling-idx', 'value'),
+         State('div-newGraph-coupling-gtype', 'children'),
+         State('store-data-connectors', 'data')])
+    def createRemoveGraph(btnCreateGraph, _btnsRemoveGraph, listGraphSpaceChildren, idxConnector, gtype, dictMetainfo):
         ctx = dash.callback_context
         if not ctx.triggered:
             raise PreventUpdate
         else:
             prop_id = ctx.triggered[0]['prop_id'].split('.')[0]
             
-        if "btn-remove-graph-2d" in prop_id:
-            idx = eval(prop_id).get('index')
-            if idx:
-                #TODO: fragile. causes trouble with rest of callbacks
-                #del listGraphSpaceChildren[idx-1]
-                return listGraphSpaceChildren
-        
-        intGraphIdx = len(listGraphSpaceChildren)
-        # test
-        meta = dict(
-            eq="404000500065",
-            dataType="NC",
-            schema=[
-                # based on meta information derived from schema /dataframe header
-                {"label": "Antriebsmomenten-Sollwert einer Achse/Spindel an X2",
-                 "value": "aaTorque_X2"},
-                {"label": "Antriebsauslastung einer Achse/Spindel an X2",
-                 "value": "aaLoad_X2"},
-                {"label": "Antriebsstrom-Istwert einer Achse/Spindel an X2",
-                 "value": "aaCurr_X2"},
-                {"label": "Antriebswirkleistung einer Achse/Spindel an X2",
-                 "value": "aaPower_X2"},
-            ]
-        )
-          
-        #TODO:
-        # meta. meta: schema with suplimental information 
-        # data: json with link to aggregate or pre-cached dataframe to load into plotly graph
-        dat = queryData(intGraphIdx-1, None)
-        if not len(dat):
-            raise PreventUpdate
+            if "btn-remove-graph" in prop_id:
+                idx = eval(prop_id).get('index')
+                if idx:
+                    print('delete graph unsupported', len(listGraphSpaceChildren))
+                    raise PreventUpdate
+                    # TODO: fix correct index
+                    del listGraphSpaceChildren[idx]
+                    # shift prop intGraphIdx
+                    listGraphSpaceChildren = treewalkShiftPropIdx(listGraphSpaceChildren)
+                    raise PreventUpdate
+                else:
+                    raise PreventUpdate
 
-        listDictAllFeatures = meta.get('schema')
-        strEQ = meta.get('eq')
-        strType = meta.get('dataType')
-        intTotSamples = dat.shape[0]
-        dtMinDate = min(dat)
-        dtMaxDate = max(dat)
+            else:
+                #create graph
 
-        if create2D > create3D:
-            newGraph = spawnGraph(intGraphIdx,
-                kind='scatter', 
-                listDictAllFeatures=listDictAllFeatures,
-                strEQ=strEQ,
-                strType=strType,
-                intTotSamples=intTotSamples,
-                dtMinDate=dtMinDate,
-                dtMaxDate=dtMaxDate
-            )
-        else:
-            newGraph = spawnGraph(intGraphIdx,
-                kind='scatter3d',
-                listDictAllFeatures=listDictAllFeatures,
-                strEQ=strEQ,
-                strType=strType,
-                intTotSamples=intTotSamples,
-                dtMinDate=dtMinDate,
-                dtMaxDate=dtMaxDate
-            )
-            
-        listGraphSpaceChildren.insert(0, newGraph)
-        if len(listGraphSpaceChildren):
-            boolSaveBtnDisabled = False
-            
-        return listGraphSpaceChildren, boolSaveBtnDisabled
+                # general meta information
+                intGraphIdx = len(listGraphSpaceChildren)
+                listDictAllFeatures = dictMetainfo[idxConnector].get('schema') # pictures: [{'label': path.name, 'value': path}
+                strEQ = dictMetainfo[idxConnector].get('eq')
+                strType = dictMetainfo[idxConnector].get('dataType') #pictures
+
+                if 'picture' in gtype:
+                    kind = 'picture'
+                    listPicturePaths = queryPictureData()
+                    # last modiefied dates
+                    # earliest last modified data
+                    mtimes = [os.path.getmtime(file) for file in listPicturePaths]
+                    dtMinDate = min(mtimes)
+                    dtMaxDate = max(mtimes)
+                    listDictAllFeatures = [{'label': path.name, 'value': path} for path in listPicturePaths]
+                    intTotSamples = len(listPicturePaths)
+
+                else:
+                    tensorIndex = queryTensorData(idxConnector, None)
+                    if not len(tensorIndex):
+                        raise PreventUpdate
+
+                    intTotSamples = tensorIndex.shape[0]
+                    dtMinDate = min(tensorIndex)
+                    dtMaxDate = max(tensorIndex)
+
+                    if 'tensor-3D' in gtype:
+                        kind = 'scatter3d'
+                    else:
+                        kind = 'scatter'
+
+                newGraph = spawnGraph(
+                    intGraphIdx,
+                    kind=kind, 
+                    listDictAllFeatures=listDictAllFeatures,
+                    strEQ=strEQ,
+                    strType=strType,
+                    intTotSamples=intTotSamples,
+                    dtMinDate=dtMinDate,
+                    dtMaxDate=dtMaxDate
+                )
+                listGraphSpaceChildren.insert(0, newGraph)
+
+            if len(listGraphSpaceChildren): #TODO: this should be -1
+                boolSaveBtnDisabled = False
+            else:
+                boolSaveBtnDisabled = True
+                
+            return listGraphSpaceChildren, boolSaveBtnDisabled
 
 
     @app.callback(
-        [Output({'type': 'graph', 'index': MATCH}, 'figure'),
-         Output({'type': 'graph', 'index': MATCH}, 'config')],
-        [Input({'type': 'dropdown-select-feature-Y', 'index': MATCH}, 'value'),
-         Input({'type': 'dropdown-select-feature-Z', 'index': MATCH}, 'value')],
-        [State({'type': 'dropdown-select-feature-Y', 'index': MATCH}, 'options'),
-         State({'type': 'graph', 'index': MATCH}, 'config')]
+         Output('store-data-connectors', 'data'),
+        [Input({'type': 'dialog-connector-save-attributes', 'ctype': ALL}, 'n_clicks'),
+         Input('upload-data', 'fileNames')],
+        [State({'type': 'dialog-connector-attributes', 'ctype': ALL}, 'is_open'),
+         State({'type': 'dialog-connector-gtype', 'ctype': ALL}, 'value'),
+         State({'type': 'dialog-connector-schema', 'ctype': ALL}, 'value'),
+         State({'type': 'dialog-connector-eq', 'ctype': ALL}, 'value'),
+         State({'type': 'dialog-connector-dataType', 'ctype': ALL}, 'value'),
+         State({'type': 'dialog-connector-source', 'ctype': ALL}, 'value'),
+         State('store-data-connectors', 'data')]
     )
-    def changeGraph(strSelectedValuesY, strSelectedValuesZ, listDictAllFeatures, config):
-        if not strSelectedValue:
+    def createConnectorMetainfo(_btnSaveAttributes, _uploader, dialogIsOpen, gtype, schema, eq, dataType, source, dictMetainfo):
+        ctx = dash.callback_context
+        if not ctx.triggered:
+            raise PreventUpdate
+
+        else:
+            prop_id = ctx.triggered[0]['prop_id'].split('.')[0]
+            
+            if "upload-data" in prop_id:
+                fileNames = eval(prop_id).get('fileNames')
+                if len(fileNames):
+                    fileNames = set(fileNames)
+                    maxIdx = max(set(dictMetainfo), default=0)
+                    dictMetainfo[maxIdx]['source'] = [str(getUploadPath() / fn) for fn in fileNames]
+
+            else:
+                if not dialogIsOpen: #and not any(btnSaveAttributes)
+                    raise PreventUpdate
+
+                else:
+                    newSessionIdx = int(max(dictMetainfo.keys(), default=0)) + 1
+
+                    # get via Input Fields
+                    gtype = "tensor" # 'picture'
+                    schema = [
+                                # based on meta information derived from schema / dataframe header
+                                {"label": "Antriebsmomenten-Sollwert einer Achse/Spindel an X2",
+                                 "value": "aaTorque_X2"},
+                                {"label": "Antriebsauslastung einer Achse/Spindel an X2",
+                                 "value": "aaLoad_X2"},
+                                {"label": "Antriebsstrom-Istwert einer Achse/Spindel an X2",
+                                 "value": "aaCurr_X2"},
+                                {"label": "Antriebswirkleistung einer Achse/Spindel an X2",
+                                 "value": "aaPower_X2"},
+                            ] # pictures: [{'label': path.name, 'value': path}
+                    eq = "404000500065"
+                    source="", # str(getUploadPath() / fn) for n, fn in enumerate(fileNames)
+                    dataType = "NC"#'pictures'
+
+                    attr = dict(
+                            gtype=gtype,
+                            eq=eq,
+                            dataType=dataType,
+                            source=source,
+                            schema=schema
+                        )
+
+                    dictMetainfo[newSessionIdx] = attr
+
+        return dictMetainfo
+
+
+    @app.callback(
+         [Output({'type': 'dialog-connector-attributes', 'ctype': 'upload-connector'}, 'is_open'), #
+         Output({'type': 'dialog-connector-attributes', 'ctype': 'local-db-connector'}, 'is_open'),
+         Output({'type': 'dialog-connector-attributes', 'ctype': 'cloud-blob-connector'}, 'is_open'),
+         Output({'type': 'dialog-connector-attributes', 'ctype': 'cloud-stream-connector'}, 'is_open')],
+        [Input({'type': 'btn-upload-connector'}, 'n_clicks_timestamp'),
+         Input({'type': 'btn-local-db-connector'}, 'n_clicks_timestamp'),
+         Input({'type': 'btn-cloud-blob-connector'}, 'n_clicks_timestamp'),
+         Input({'type': 'btn-cloud-stream-connector'}, 'n_clicks_timestamp'),
+         Input({'type': "dialog-connector-cancel", 'ctype': 'upload-connector'}, "n_clicks_timestamp"),
+         Input({'type': "dialog-connector-cancel", 'ctype': 'local-db-connector'}, "n_clicks_timestamp"),
+         Input({'type': "dialog-connector-cancel", 'ctype': 'cloud-blob-connector'}, "n_clicks_timestamp"),
+         Input({'type': "dialog-connector-cancel", 'ctype': 'cloud-stream-connector'}, "n_clicks_timestamp"),
+         Input('div-graphSpace', 'children')]
+    )
+    def showDialogConnectionAttributes(_btnUploadConnector, _btnDBConnector, _btnBlobConnector, _btnStreamConnector,
+            _dialogDismissUpload, _dialogDismissDB, _dialogDismissBlob, _dialogDismissStream, listGraphSpaceChildren):
+        ctx = dash.callback_context
+        if not ctx.triggered:
+            raise PreventUpdate
+
+        closeAllDialogs = np.array([False, False, False, False])
+        prop_id = ctx.triggered[0]['prop_id'].split('.')[0]
+        if not "div-graphSpace" in prop_id: # close dialog after creation
+            componentType = eval(ctx.triggered[0]['prop_id'].split('.')[0])['type']
+
+            if not 'dialog-connector-cancel' in componentType:
+                openDialog = np.argmax([_btnUploadConnector, _btnDBConnector, _btnBlobConnector, _btnStreamConnector])
+                closeAllDialogs[openDialog] = True
+
+        return closeAllDialogs.tolist()
+
+
+    @app.callback(
+         Output('btn-create-graph', 'disabled'),
+        [Input('dropdown-newGraph-coupling-idx', 'value')],
+        [State('store-data-connectors', 'data')]
+    )
+    def checkGraphCoupling(idxConnector, dictMetainfo):
+        disabled = True
+        if idxConnector:
+            if idxConnector in dictMetainfo.keys():
+                disabled = False
+        return disabled
+
+
+    @app.callback(
+        [Output({'type': 'dialog-connector-save-attributes', 'ctype': MATCH}, 'disabled'),
+         Output({'type': 'dialog-connector-eq', 'ctype': MATCH}, 'valid')],
+        [Input({'type': 'dialog-connector-gtype', 'ctype': MATCH}, 'value'),
+         Input({'type': 'dialog-connector-schema', 'ctype': MATCH}, 'value'),
+         Input({'type': 'dialog-connector-eq', 'ctype': MATCH}, 'value'),
+         Input({'type': 'dialog-connector-dataType', 'ctype': MATCH}, 'value'),
+         Input({'type': 'dialog-connector-source', 'ctype': MATCH}, 'value'),
+         Input({'type': 'dialog-connector-host', 'ctype': MATCH}, 'value'),
+         Input({'type': 'dialog-connector-port', 'ctype': MATCH}, 'value'),
+         Input({'type': 'dialog-connector-user', 'ctype': MATCH}, 'value'),
+         Input({'type': 'dialog-connector-pw', 'ctype': MATCH}, 'value'),
+         Input({'type': 'dialog-connector-host', 'ctype': MATCH}, 'valid')
+         ]
+    )
+    def checkConnectorAttributes(gtype, schema, eq, dataType, source, host, port, user, password, validHost
+        ):
+        disabled = True
+        valid = False
+
+        if eq:
+            valid = True
+        if gtype and eq and dataType:
+            ctx = dash.callback_context
+            if ctx.triggered:
+                componentType = eval(ctx.triggered[0]['prop_id'].split('.')[0])['ctype']
+                if "local-db-connector" in componentType and not (host and port and validHost): #
+                    disabled = True
+                else:
+                    disabled = False
+
+        return disabled, valid
+
+
+    @app.callback(
+        [Output('dropdown-newGraph-coupling-idx', 'options'),
+         Output('div-newGraph-coupling-gtype', 'children'),
+         Output('dialog-newGraph-coupling', 'is_open')],
+        [Input('btn-add-graph-2D', 'n_clicks_timestamp'),
+         Input('btn-add-graph-3D', 'n_clicks_timestamp'),
+         Input('btn-add-graph-pic', 'n_clicks_timestamp'),
+         Input('btn-dimsiss-dialog-newGraph-coupling', 'n_clicks'),
+         Input('div-graphSpace', 'children')],
+        [State('store-data-connectors', 'data')])
+    def openDialogDataGraphConnection(add2D, add3D, addPic, dismissDialogConnection, listGraphSpaceChildren, dictMetainfo):
+        ctx = dash.callback_context
+        if not ctx.triggered:
             raise PreventUpdate
         else:
-            strLabel = [dictOption['label'] for dictOption in listDictAllFeatures if strSelectedValue in dictOption['value']][0]
-            config['toImageButtonOptions'] = {
-                'format': 'png',
-                'filename': f"{strSelectedValue}-{strLabel}_Mephisto.png",
-            }
+            prop_id = ctx.triggered[0]['prop_id'].split('.')[0]
+            if not dictMetainfo or 'btn-dimsiss-dialog-newGraph-coupling' in prop_id or 'div-graphSpace' in prop_id:
+                # close dialog after creation
+                # no data connector available
+                return [], '', False
 
-        if strSelectedValue not in listDictAllFeatures:
-            fig = updateFig(col=strSelectedValue)
-        
-        fig = updateFig3D()
-                
-        return fig, config
+            else:
+                openDialog = True
+
+                if 'btn-add-graph-pic' in prop_id:
+                    gtype = 'picture'
+                elif 'btn-add-graph-2D' in prop_id:
+                    gtype = 'tensor-2D'
+                elif 'btn-add-graph-3D' in prop_id:
+                    gtype = 'tensor-3D'
+
+                options = []
+                for key, dictValues in dictMetainfo.items():
+                    if gtype[:-3] in dictValues['gtype']:
+                        options.append({'label': str(key)+str(dictValues['eq'])+str(dictValues['dataType']), 'value': key})
+
+                if not len(options):
+                    # {"label": "No Data Connector available", "value": None}
+                    return [], '', True
+
+                return options, gtype, openDialog
+
+
+    @app.callback(
+         Output({'type': 'graph', 'index': MATCH}, 'figure'),
+        [Input({'type': 'dropdown-select-feature-Y', 'index': MATCH}, 'value'),
+         Input({'type': 'dropdown-select-feature-Z', 'index': MATCH}, 'value'),
+         Input({'type': 'dropdown-select-picture', 'index': MATCH}, 'value'),
+         Input({'type': 'input-select-sample-n', 'index': MATCH}, 'value'),
+         Input({'type': 'datepicker-select-sample-range', 'index': MATCH}, 'start_date'),
+         Input({'type': 'datepicker-select-sample-range', 'index': MATCH}, 'end_date'),
+         Input({'type': 'input-select-sample-time', 'index': MATCH}, 'value'),
+         Input({'type': 'radio-select-sample-draw', 'index': MATCH}, 'value'),
+         Input({'type': 'btn-reload-graph', 'index': MATCH}, 'n_clicks_timestamp')],
+        [State({'type': 'dropdown-select-feature-Y', 'index': MATCH}, 'placeholder'),
+         State({'type': 'dropdown-select-feature-Z', 'index': MATCH}, 'placeholder'),
+         State({'type': 'dropdown-select-picture', 'index': MATCH}, 'placeholder')]
+    )
+    def changeGraph(strSelectedValuesY, strSelectedValuesZ, strSelectedValuesPic,
+            nSamples, start_date, end_date, start_time, samplingMethod, btnReloadGraph,
+            shadowY, shadowZ, shadowPic):
+        if nSamples is None:
+            raise PreventUpdate
+        if nSamples < 1:
+            raise PreventUpdate
+        else:
+            ctx = dash.callback_context
+            if not ctx.triggered:
+                raise PreventUpdate
+            else:
+                prop_id = ctx.triggered[0]['prop_id'].split('.')[0]
+                if 'btn-reload-graph' in prop_id:
+                    # TODO: new sampling
+                    pass
+
+            # also in store
+            start_date = dt.strptime(re.split('T| ', start_date)[0], '%Y-%m-%d')
+            if end_date:
+                end_date = dt.strptime(re.split('T| ', end_date)[0], '%Y-%m-%d')
+
+            if 'Shadowing' in shadowY:
+                if not strSelectedValuesPic:
+                    raise PreventUpdate
+                # picture
+                fig = updatePic(pic=strSelectedValuesPic,
+                        start_date=start_date, end_date=end_date,
+                        start_time=start_time, method=samplingMethod, n=nSamples)
+                return fig
+
+            elif 'Shadowing' in shadowZ:
+                if not strSelectedValuesY:
+                    raise PreventUpdate
+                # scatter
+                fig = updateScatter(dimsY=strSelectedValuesY,
+                        start_date=start_date, end_date=end_date,
+                        start_time=start_time, method=samplingMethod, n=nSamples)
+                return fig
+
+            else:
+                if not strSelectedValuesY and not trSelectedValuesZ:
+                    raise PreventUpdate
+                # scatter3d
+                fig = updateScatter3d(dimsY=strSelectedValuesY, dimsZ=strSelectedValuesZ,
+                        start_date=start_date, end_date=end_date,
+                        start_time=start_time, method=samplingMethod, n=nSamples)
+                return fig
+            # strLabel = [dictOption['label'] for dictOption in listDictAllFeatures if strSelectedValuesY in dictOption['value']][0]
+            # config['toImageButtonOptions'] = {
+            #     'format': 'png',
+            #     'filename': f"{strSelectedValuesY}-{strLabel}_Mephisto.png",
+            # }
+
 
     @app.callback(
         [Output('loading-workspace-save', 'children'),
@@ -127,9 +362,9 @@ def register_callbacks(app):
         [Input('btn-workspace-save', 'n_clicks')],
         [State('btn-tools-linker', 'active'),
          State('tab-report-data', 'disabled')
-        #[State({'type': 'graph-2d', 'index': MATCH}, 'clickData'), #Data from latest click event.
-        # State({'type': 'graph-2d', 'index': MATCH}, 'clickAnnotationData'), #Data from latest click annotation event.
-        # State({'type': 'graph-2d', 'index': MATCH}, 'selectedData') #Data from latest select event.
+        #[State({'type': 'graph', 'index': MATCH}, 'clickData'), #Data from latest click event.
+        # State({'type': 'graph', 'index': MATCH}, 'clickAnnotationData'), #Data from latest click annotation event.
+        # State({'type': 'graph', 'index': MATCH}, 'selectedData') #Data from latest select event.
         ]
     )
     def saveAnnotations(save, linkingActive, boolExportDisabled): #, dictClickData, dictclickAnnotationData, dictSelectedData
@@ -376,7 +611,7 @@ def register_callbacks(app):
         for k, m in dictMetainfo.items():
             # if m not in availIdx:
             listAvailableDataConnectors.append(
-                spawnDataConnector(f"EQ: {m['eq']}\n"+f"{m['dataType']}", idx=k)
+                spawnDataConnector(f"{k}:\n  EQ: {m['eq']}\n"+f"{m['dataType']}", idx=k)
             )
 
         nConnectors = len(listAvailableDataConnectors)
@@ -387,40 +622,6 @@ def register_callbacks(app):
             disabled = True
 
         return listAvailableDataConnectors, f"Data Connectors: {nConnectors}", disabled
-
-
-    @app.callback(
-         Output('store-data-connectors', 'data'),
-        [Input('upload-data', 'fileNames')],
-        [State('store-data-connectors', 'data')]
-    )
-    def uploadData(fileNames, dictMetainfo):
-        if fileNames is not None and len(fileNames):
-            fileNames = set(fileNames)
-            maxIdx = max(set(dictMetainfo), default=0)
-            # meta = dict(
-            #     eq="404000500065",
-            #     dataType="NC",
-            #     schema=[
-            #         # based on meta information derived from schema /dataframe header
-            #         {"label": "Antriebsmomenten-Sollwert einer Achse/Spindel an X2",
-            #          "value": "aaTorque_X2"},
-            #         {"label": "Antriebsauslastung einer Achse/Spindel an X2",
-            #          "value": "aaLoad_X2"},
-            #         {"label": "Antriebsstrom-Istwert einer Achse/Spindel an X2",
-            #          "value": "aaCurr_X2"},
-            #         {"label": "Antriebswirkleistung einer Achse/Spindel an X2",
-            #          "value": "aaPower_X2"},
-            #     ]
-            # )
-
-            [dictMetainfo.update(
-                {maxIdx+n: {'eq': '404000500065', 'dataType': 'NC', 'path': str(getUploadPath() / fn)}}) for n, fn in enumerate(fileNames)]
-
-            return dictMetainfo
-
-        else:
-            return dictMetainfo
 
 
 #anything uploading??

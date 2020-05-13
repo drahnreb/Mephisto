@@ -6,9 +6,12 @@ import base64
 from os import environ as env
 import dash_html_components as html
 import numpy as np
+import plotly.graph_objects as go
 
 DATA = Path(__file__).resolve().parent.joinpath("data")
 
+PICTURE_EXTENSIONS = ['*.png', '*.jpg', '*.jpeg', '.bmp', '*.svg', '*.tiff', '*.raw']
+TENSOR_EXTENSIONS = ['parquet', 'csv', 'tsv', 'txt']
 
 PLACEHOLDER_EFFECT_CATEGORIES = [
     {"label": "normal", "value": "normal"},
@@ -25,13 +28,41 @@ PLACEHOLDER_CAUSE_SUB = [
     {"label": "speed > 5500rpm", "value": "5500"}]
 
 
-def queryData(t, col):
-    # TODO: db query
-    if t:
-        p = DATA.joinpath("p1.parquet")
-    else:
-        p = DATA.joinpath("p2.parquet")
-        
+# if False:
+#     p = DATA.joinpath("p1.parquet")
+# else:
+#     p = DATA.joinpath("p2.parquet")
+    # df = pd.read_parquet(p)
+
+
+def treewalkShiftPropIdx(components, idx=None):
+    for intGraphIdx, component in enumerate(components):
+        if isinstance(component, list):
+            # nested
+            treewalkShiftPropIdx(component, idx=intGraphIdx)
+        else:
+            try:
+                idx = component['id']['index']
+                if idx == intGraphIdx:
+                    # already same idx skip to save treewalk
+                    continue
+                else:
+                    component['id']['index'] = intGraphIdx
+            except IndexError:
+                # some comps do not have wildcard ids
+                pass
+        return components
+
+
+def queryPictureData(path=DATA):
+    all_files = []
+    for ext in PICTURE_EXTENSIONS:
+        all_files.extend(DATA.glob(ext))
+    return all_files
+
+
+def queryTensorData(idxConnector, col):
+    p = DATA.joinpath("p1.parquet")
     df = pd.read_parquet(p)
     
     if not col:
@@ -96,16 +127,25 @@ def fa(className):
     """A convenience component for adding Font Awesome icons"""
     return html.I(className=className)
 
-def updateFig(col="aaTorque_X2"):
-    # layout = dict()
+
+def updatePic(pic, start_date, end_date,
+        start_time, method, n):
+    p = DATA.joinpath(pic)
+    
+    # TODO: update incrementally
+    fig = createFigTemplate('picture')
+
+    return fig
+
+
+def updateScatter(dimsY, start_date, end_date,
+        start_time, method, n):
     p = DATA.joinpath("p1.parquet")
-    # else:
-    #     p = DATA.joinpath("p2.parquet")
         
     df = pd.read_parquet(p)
-    feat = df.loc[:, col]
+    feat = df.loc[:, dimsY]
 
-    feat.iplot(
+    fig = feat.iplot(
             kind='scatter',
             mode='markers+lines',
             size=5,
@@ -115,53 +155,11 @@ def updateFig(col="aaTorque_X2"):
     return fig
 
 
-def createFigTemplate(kind):
-    if kind == 'scatter3d':
-        dictHideOptions = dict(visible=False, showgrid=False, zeroline=False, showline=False, autorange=True, showticklabels=False)
-        placeholder = pd.DataFrame([{'x':1, 'y':1, 'z':1, 'text': "Select sample(s) of two features"}])
-        fig = placeholder.iplot(
-                kind='scatter3d',
-                mode='markers+lines'+'+text',
-                size=1,
-                x='x',
-                y='y',
-                z='z',
-                text='text',
-                textposition="bottom center",
-                asFigure=True)
-        fig.layout.scene = {
-            'xaxis': dictHideOptions,
-            'yaxis': dictHideOptions,
-            'zaxis': dictHideOptions
-        }
-        #tight layout
-        fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
-    else:
-        dictHideOptions = dict(showgrid=False, zeroline=False, showline=False, autorange=True, showticklabels=False)
-        
-        placeholder = pd.DataFrame([1])
-        fig = placeholder.iplot(
-                kind='scatter',
-                mode='markers+lines'+'+text',
-                size=1,
-                text=["Select sample(s) of a feature"],
-                textposition="bottom center",
-                asFigure=True)
-        fig.layout.xaxis = dictHideOptions
-        fig.layout.yaxis = dictHideOptions
-
-    # do some polishing
-    fig.data[0].update(
-        textfont=dict(size=30)
-    )
-    fig.layout.update(hovermode=False)
-    
-    return fig
-
-
-def updateFig3D(surface=True):
+def updateScatter3d(dimsY, dimsZ, start_date, end_date,
+        start_time, method, n):
     p = DATA.joinpath('p3.parquet')
     df = pd.read_parquet(p)
+    surface = True
 
     xlist = list(df["x"].dropna())
     ylist = list(df["y"].dropna())
@@ -265,9 +263,137 @@ def updateFig3D(surface=True):
         )
     )
 
-    figure = dict(data=data, layout=layout)
-    # py.iplot(figure)
-    return figure
+    fig = dict(data=data, layout=layout)
+    return fig
+
+
+def createFigTemplate(kind):
+    if kind == 'scatter3d':
+        dictHideOptions = dict(visible=False, showgrid=False, zeroline=False, showline=False, autorange=True, showticklabels=False)
+        placeholder = pd.DataFrame([{'x':1, 'y':1, 'z':1, 'text': "Select sample(s) of two features"}])
+        fig = placeholder.iplot(
+                kind='scatter3d',
+                mode='markers+lines'+'+text',
+                size=1,
+                x='x',
+                y='y',
+                z='z',
+                text='text',
+                textposition="bottom center",
+                asFigure=True)
+        fig.layout.scene = {
+            'xaxis': dictHideOptions,
+            'yaxis': dictHideOptions,
+            'zaxis': dictHideOptions
+        }
+        #tight layout
+        fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
+
+    elif kind == 'picture':
+        # Create figure
+        fig = go.Figure()
+        # Constants
+        img_width = 1600
+        img_height = 900
+        scale_factor = 0.5
+
+        # Add invisible scatter trace.
+        # This trace is added to help the autoresize logic work.
+        fig.add_trace(
+            go.Scatter(
+                x=[0, img_width * scale_factor],
+                y=[0, img_height * scale_factor],
+                mode="markers",
+                marker_opacity=0
+            )
+        )
+
+        # Configure axes
+        fig.update_xaxes(
+            visible=False,
+            range=[0, img_width * scale_factor]
+        )
+
+        fig.update_yaxes(
+            visible=False,
+            range=[0, img_height * scale_factor],
+            # the scaleanchor attribute ensures that the aspect ratio stays constant
+            scaleanchor="x"
+        )
+
+        # Add image
+        fig.add_layout_image(
+            dict(
+                x=0,
+                sizex=img_width * scale_factor,
+                y=img_height * scale_factor,
+                sizey=img_height * scale_factor,
+                xref="x",
+                yref="y",
+                opacity=1.0,
+                layer="below",
+                sizing="stretch",
+                source="https://raw.githubusercontent.com/michaelbabyn/plot_data/master/bridge.jpg")
+        )
+
+        # Configure other layout
+        fig.update_layout(
+            width=img_width * scale_factor,
+            height=img_height * scale_factor,
+            margin={"l": 0, "r": 0, "t": 0, "b": 0},
+        )
+
+    else:
+        dictHideOptions = dict(showgrid=False, zeroline=False, showline=False, autorange=True, showticklabels=False)
+        
+        placeholder = pd.DataFrame([1])
+        fig = placeholder.iplot(
+                kind='scatter',
+                mode='markers+lines'+'+text',
+                size=1,
+                text=["Select sample(s) of a feature"],
+                textposition="bottom center",
+                asFigure=True)
+        fig.layout.xaxis = dictHideOptions
+        fig.layout.yaxis = dictHideOptions
+
+    # do some polishing
+    fig.data[0].update(
+        textfont=dict(size=30)
+    )
+    fig.layout.update(hovermode=False)
+    
+    return fig
+
+
+def createFigConfig(kind):
+    config = dict(
+        showTips=True, responsive=True, scrollZoom=True,
+        showLink=False, displaylogo=False, watermark=False,
+        modeBarButtonsToRemove=['sendDataToCloud'], showSendToCloud=False,
+        showEditInChartStudio=False,
+        # editable=True,
+        edits={  # make following annotations editable
+            # The main anchor of the annotation, which is the text (if no arrow)
+            # or the arrow (which drags the whole thing leaving the arrow length & direction unchanged)
+            'annotationPosition': True,
+            # Just for annotations with arrows, change the length and direction of the arrow
+            'annotationTail': True,
+            # change label text
+            'annotationText': True,
+        },
+        queueLength=10,  # Set the length of the undo/redo queue,
+        autosizable=True,
+        doubleClick='autosize',
+        showAxisDragHandles=True,
+        displayModeBar=True  # always show modebar
+    )
+    if kind == 'picture':
+        # Disable the autosize on double click because it adds unwanted margins around the image
+        # More detail: https://plotly.com/python/configuration-options/
+        config['doubleClick'] = 'reset'
+
+    return config
 
 
 def fetch_data(data, dim="2D"):
