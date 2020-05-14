@@ -7,10 +7,13 @@ from os import environ as env
 import dash_html_components as html
 import numpy as np
 import plotly.graph_objects as go
+from PIL import Image
 
 DATA = Path(__file__).resolve().parent.joinpath("data")
+BASE_DIR = Path(__file__).resolve().parent
+UPLOADPATH = BASE_DIR.joinpath("uploads")
 
-PICTURE_EXTENSIONS = ['*.png', '*.jpg', '*.jpeg', '.bmp', '*.svg', '*.tiff', '*.raw']
+PICTURE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'bmp', 'svg', 'tiff', 'raw']
 TENSOR_EXTENSIONS = ['parquet', 'csv', 'tsv', 'txt']
 
 PLACEHOLDER_EFFECT_CATEGORIES = [
@@ -19,7 +22,7 @@ PLACEHOLDER_EFFECT_CATEGORIES = [
     {"label": "tool failure", "value": "tool_failure"}]
 PLACEHOLDER_EFFECT_SUB = [
     {"label": "tool wear solidified", "value": "tool_wear_solidified"},
-    {"label": "tool wear through cooling", "value": "tool_wear_cooling"}]
+    {"label": "tool wear by cooling", "value": "tool_wear_cooling"}]
 PLACEHOLDER_CAUSE_CATEGORIES = [
     {"label": "axial speed", "value": "speed"},
     {"label": "cooling below 23°", "value": "cooling"}]
@@ -27,6 +30,18 @@ PLACEHOLDER_CAUSE_SUB = [
     {"label": "speed > 8000rpm", "value": "8000"},
     {"label": "speed > 5500rpm", "value": "5500"}]
 
+SUPPORTED_DATACATEGORIES = ['NC', 'SPS', 'Bolting', 'Energy', 'Xray', 'CT', 'Thermography']
+
+COLORS = ["primary", "secondary", "success", "warning", "danger", "info", "light", "dark"]
+
+nCats = len(SUPPORTED_DATACATEGORIES)
+nColors = len(COLORS)
+cdcDiff = nCats - nColors
+if cdcDiff > 0:
+    COLORS_ext = COLORS * int(np.ceil(cdcDiff/nColors))
+else:
+    COLORS_ext = COLORS
+COLOR_PICKER = {cat: col for cat, col in zip(SUPPORTED_DATACATEGORIES, COLORS_ext)}
 
 # if False:
 #     p = DATA.joinpath("p1.parquet")
@@ -57,7 +72,8 @@ def treewalkShiftPropIdx(components, idx=None):
 def queryPictureData(path=DATA):
     all_files = []
     for ext in PICTURE_EXTENSIONS:
-        all_files.extend(DATA.glob(ext))
+        pathlibExt = '*.'+ext
+        all_files.extend(DATA.glob(pathlibExt))
     return all_files
 
 
@@ -90,16 +106,16 @@ def querySimilarSamples(annotatedClass, n=3):
     return store
 
 
-def queryAnnotationClasses(atype='ecat'):
+def queryAnnotationClasses(atype='effect'):
     # TODO: db query
     options = []
-    if 'ecat' in atype:
+    if 'effect' in atype:
         options = PLACEHOLDER_EFFECT_CATEGORIES
-    elif 'esub' in atype:
+    elif 'subeffect' in atype:
         options = PLACEHOLDER_EFFECT_SUB
-    elif 'ccat' in atype:
+    elif 'cause' in atype:
         options = PLACEHOLDER_CAUSE_CATEGORIES
-    elif 'csub' in atype:
+    elif 'subcause' in atype:
         options = PLACEHOLDER_CAUSE_SUB
 
     return options
@@ -130,10 +146,61 @@ def fa(className):
 
 def updatePic(pic, start_date, end_date,
         start_time, method, n):
-    p = DATA.joinpath(pic)
-    
-    # TODO: update incrementally
-    fig = createFigTemplate('picture')
+    strPicPath = str(DATA.joinpath(pic).resolve())
+    im = Image.open(strPicPath)
+    width, height = im.size
+
+    # Create figure
+    fig = go.Figure()
+    # Constants
+    scale_factor = 2 #0.5
+
+    # Add invisible scatter trace.
+    # This trace is added to help the autoresize logic work.
+    fig.add_trace(
+        go.Scatter(
+            x=[0, width * scale_factor],
+            y=[0, height * scale_factor],
+            mode="markers",
+            marker_opacity=0
+        )
+    )
+
+    # Configure axes
+    fig.update_xaxes(
+        visible=False,
+        range=[0, width * scale_factor]
+    )
+
+    fig.update_yaxes(
+        visible=False,
+        range=[0, height * scale_factor],
+        # the scaleanchor attribute ensures that the aspect ratio stays constant
+        scaleanchor="x"
+    )
+
+    # Add image
+    fig.add_layout_image(
+        dict(
+            x=0,
+            sizex=width * scale_factor,
+            y=height * scale_factor,
+            sizey=height * scale_factor,
+            xref="x",
+            yref="y",
+            opacity=1.0,
+            layer="below",
+            sizing="stretch",
+            source=im
+        )
+    )
+
+    # Configure other layout
+    fig.update_layout(
+        width=width * scale_factor,
+        height=height * scale_factor,
+        margin={"l": 0, "r": 0, "t": 0, "b": 0},
+    )
 
     return fig
 
@@ -288,60 +355,6 @@ def createFigTemplate(kind):
         }
         #tight layout
         fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
-
-    elif kind == 'picture':
-        # Create figure
-        fig = go.Figure()
-        # Constants
-        img_width = 1600
-        img_height = 900
-        scale_factor = 0.5
-
-        # Add invisible scatter trace.
-        # This trace is added to help the autoresize logic work.
-        fig.add_trace(
-            go.Scatter(
-                x=[0, img_width * scale_factor],
-                y=[0, img_height * scale_factor],
-                mode="markers",
-                marker_opacity=0
-            )
-        )
-
-        # Configure axes
-        fig.update_xaxes(
-            visible=False,
-            range=[0, img_width * scale_factor]
-        )
-
-        fig.update_yaxes(
-            visible=False,
-            range=[0, img_height * scale_factor],
-            # the scaleanchor attribute ensures that the aspect ratio stays constant
-            scaleanchor="x"
-        )
-
-        # Add image
-        fig.add_layout_image(
-            dict(
-                x=0,
-                sizex=img_width * scale_factor,
-                y=img_height * scale_factor,
-                sizey=img_height * scale_factor,
-                xref="x",
-                yref="y",
-                opacity=1.0,
-                layer="below",
-                sizing="stretch",
-                source="https://raw.githubusercontent.com/michaelbabyn/plot_data/master/bridge.jpg")
-        )
-
-        # Configure other layout
-        fig.update_layout(
-            width=img_width * scale_factor,
-            height=img_height * scale_factor,
-            margin={"l": 0, "r": 0, "t": 0, "b": 0},
-        )
 
     else:
         dictHideOptions = dict(showgrid=False, zeroline=False, showline=False, autorange=True, showticklabels=False)

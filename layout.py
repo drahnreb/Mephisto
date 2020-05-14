@@ -5,7 +5,7 @@ import dash_bootstrap_components as dbc
 import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, State, Output
-from utils import fa, queryAnnotationClasses, createFigTemplate, createFigConfig, TENSOR_EXTENSIONS, PICTURE_EXTENSIONS
+from utils import fa, queryAnnotationClasses, createFigTemplate, createFigConfig, TENSOR_EXTENSIONS, PICTURE_EXTENSIONS, SUPPORTED_DATACATEGORIES
 import uuid
 import plotly.express as px
 import re
@@ -63,14 +63,12 @@ def initSelectData():
                 label="Load Data",
                 id='tab-load-data',
                 children=dbc.Row(
-                    [spawnConnectorDialogs(ctype) for ctype \
-                        in ['upload-connector','local-db-connector',
-                            'cloud-blob-connector','cloud-stream-connector']] + [
+                    [
                         # upload local data
                         dbc.Col([
                             dbc.Row(dbc.Col(dbc.Label('Upload local data:', style={"fontWeight": "bold"}))),
                             dbc.Row(dbc.Col(dbc.Button(
-                                "Upload File(s) (Textual, Picture...)",
+                                "Upload File(s) (Textual, Image...)",
                                 color="primary",
                                 n_clicks=0,
                                 n_clicks_timestamp=0,
@@ -136,13 +134,16 @@ def initSelectData():
                 label="Data Connectors: 0",
                 disabled=True,
                 children=[
-                    dbc.Row(
-                        children=[],
-                        id="div-data-connectors",
-                    )
-                ],
-                id='tab-data-connectors'
+                    dbc.Row([
+                        # upload local data
+                        dbc.Col([
+                            dbc.Row(dbc.Col(dbc.Label('The session is connected to the following data:', style={"fontWeight": "bold"}))),
+                            dbc.Row([], id="div-data-connectors", align="center", justify="center", style={'margin': '5px'})
+                        ]),
+                    ])
+                ], id='tab-data-connectors'
             )
+                
 
         def _createReportTab():
             """ export data tab """
@@ -196,47 +197,27 @@ def initWorkspace():
         # )
         
         # add graph button row
-        return dbc.Row(dbc.Col([
-            dbc.Modal(
-                [
-                    dbc.ModalHeader("Bind Graph to a Data Connector"),
-                    dbc.ModalBody(
-                        [   
-                            html.Div(id="div-newGraph-coupling-gtype", style={'display': 'none'}),
-                            dcc.Dropdown(
-                                id='dropdown-newGraph-coupling-idx',
-                                placeholder='Choose Data Connector',
-                                searchable=True,
-                                clearable=True
-                            )
-                        ]
-                    ),
-                    dbc.ModalFooter([
-                        dbc.Button("Cancel", id="btn-dimsiss-dialog-newGraph-coupling", n_clicks=0, className="ml-auto"),
-                        dbc.Button("Create Graph", id="btn-create-graph", disabled=True, n_clicks=0, className="ml-auto")
-                    ]),
-                ],
-                id="dialog-newGraph-coupling",
-                size="md",
-                centered=True,
-            ),
+        graphControls = dbc.Row(dbc.Col([
             dbc.ButtonGroup([
                 dbc.Button(
                     [fa("fas fa-plus"), " 2D"],
                     n_clicks_timestamp=0,
                     n_clicks=0,
+                    disabled=True,
                     id="btn-add-graph-2D"
                 ),
                 dbc.Button(
                     [fa("fas fa-plus"), " 3D"],
                     n_clicks_timestamp=0,
                     n_clicks=0,
+                    disabled=True,
                     id="btn-add-graph-3D"
                 ),
                 dbc.Button(
-                    [fa("fas fa-plus"), " Picture"],
+                    [fa("fas fa-plus"), " Image"],
                     n_clicks_timestamp=0,
                     n_clicks=0,
+                    disabled=True,
                     id="btn-add-graph-pic"
                 )
             ],
@@ -244,7 +225,11 @@ def initWorkspace():
             className="mr-1",
             )
         ], width=3, className="p-2"), justify="end", align="stretch")
-            # dbc.Row(dbc.Col([dbc.Button(fa("fas fa-plus"), color="dark", id="btn-create-graph")], width=1, className="p-2"), justify="end")
+        
+        graphContainer = dbc.Row(dbc.Col([], id="div-graphContainer", style={'margin': '0px', 'padding': '0px'}))
+
+        return [graphContainer, graphControls]
+
         
     def _createAnnotationSpace():
         """ annotation class space """
@@ -261,201 +246,92 @@ def initWorkspace():
                 dbc.Row([
                     # dbc.Col(dbc.Button(children=[fa("fas fa-chart-line"), "  Trend-Line"], outline=True, block=True, color="secondary", id="btn-tools-line", className="p-1"), xl=6, className="p-1"),
                     dbc.Col(dbc.Button(children=[fa("fas fa-link"), "  Multivariate Linking"], outline=True, block=True,
-                                       color="secondary", n_clicks_timestamp=0, n_clicks=0, id="btn-tools-linker", active=False, className="p-1"), className="p-1")
+                                       color="secondary", n_clicks_timestamp=0, n_clicks=0, id="btn-tools-linker", disabled=True, active=False, className="p-1"), className="p-1")
                     # ,xl=6
                 ], className="m-1", justify="between"),
             ], fluid=True, id="div-toolbar", style={'position': 'sticky', 'bottom': 0, "zIndex": 5})
 
-        def _createEffectView():
-            return [
-                dbc.Col(
-                    [
-                        # selection from existing classes
-                        dbc.Row(dbc.Col([
-                            dbc.Label("Select from existing effects", style={"fontWeight": "bold"}),
-                            dcc.Dropdown(
-                                id="dropdown-effect-category-selector",
-                                options=queryAnnotationClasses(atype='ecat'), # Spawned list of dict options {'label': 'l1', 'value': 'v1'} during session
-                                value=None,
-                                placeholder="Type to search...",
-                                searchable=True,
-                                clearable=True,
-                                multi=False,
-                                persistence=True,
-                                persistence_type=PERSISTENCE
-                            )
-                        ])),
-                        # definition of new effect
-                        dbc.Row(dbc.Col([
-                            dbc.FormGroup(
-                                [
-                                    dbc.Label("No effect suitable?"),
-                                    dbc.Input(placeholder="define new effect category...",
-                                        valid=False,
-                                        invalid=False,
-                                        persistence=True,
-                                        persistence_type=PERSISTENCE,
-                                        id="input-new-effect-category"
-                                    ),
-                                    dbc.FormText("Try to select from available effects. Care about naming conventions!"),
-                                    dbc.Button("Save in database",
-                                        color="info",
-                                        outline=True,
-                                        block=True,
-                                        n_clicks_timestamp=0,
-                                        id="btn-add-effect-category")
-                                ]
-                            )
-                        ])),
-                        html.Hr(),
-                        # specific effect subcategory
-                        dbc.Row(dbc.Col([
-                                dbc.Label("Specific effect subcategory", style={"fontWeight": "bold"}, id='label-effect-subcategory'),
-                                dcc.Dropdown(
-                                    id="dropdown-effect-subcategory-selector",
-                                    options=[], # Spawned list of dict options {'label': 'l1', 'value': 'v1'} during session
-                                    placeholder="Type to search...",
-                                    searchable=True,
-                                    clearable=True,
-                                    multi=True,
-                                    persistence=True,
-                                    persistence_type=PERSISTENCE)
-                            ]
-                        ), id="div-effect-subcategory", style={"visibility": "hidden"}),
-                        # definition of new effect types
-                        dbc.Row(dbc.Col([
-                            dbc.FormGroup(
-                                [
-                                    dbc.Label("No effect subcategory suitable?"),
-                                    dbc.Input(placeholder="define new effect subcategory...",
-                                        valid=False,
-                                        invalid=False,
-                                        persistence=True,
-                                        persistence_type=PERSISTENCE,
-                                        id="input-new-effect-subcategory"
-                                    ),
-                                    dbc.FormText("Try to select from available sub-effects. Care about naming conventions!"),
-                                    dbc.Button("Save in database",
-                                        color="info",
-                                        outline=True,
-                                        block=True,
-                                        n_clicks_timestamp=0,
-                                        id="btn-add-effect-subcategory")
-                                ]
-                            )
-                        ]), id="div-add-effect-subcategory", style={"visibility": "hidden"}),
-                        # samples with same class assignment
-                        dbc.Row([
-                            dbc.Col([
-                                html.Hr(),
-                                dbc.Label("Other samples with same effect", style={"fontWeight": "bold"}),
-                                dbc.ListGroup(
-                                    children=[],
-                                    id="listgroup-similar-effect-samples"
-                                )
-                            ], id="div-samples-effect", style={"visibility": "hidden"})
-                        ])
-                    ]
-                )
-            ]
-
-        def _createCauseView():
-            return [
-                dbc.Col([
-                    # selection from existing classes
-                    dbc.Row(dbc.Col([
-                        dbc.Label("Select from existing causes", style={"fontWeight": "bold"}),
-                        dcc.Dropdown(
-                            id="dropdown-cause-category-selector",
-                            options=queryAnnotationClasses(atype='ccat'), # Spawned list of dict options {'label': 'l1', 'value': 'v1'} during session
-                            value=None,
-                            placeholder="Type to search...",
-                            searchable=True,
-                            clearable=True,
-                            multi=False,
-                            persistence=True,
-                            persistence_type=PERSISTENCE
-                        )
-                    ])),
-                    # definition of new effect
-                    dbc.Row(dbc.Col([
-                        dbc.FormGroup(
-                            [
-                                dbc.Label("No cause suitable?"),
-                                dbc.Input(placeholder="define new cause category...",
-                                    valid=False,
-                                    invalid=False,
-                                    persistence=True,
-                                    persistence_type=PERSISTENCE,
-                                    id="input-new-cause-category"
-                                ),
-                                dbc.FormText("Try to select from available cause. Care about naming conventions!"),
-                                dbc.Button("Save in database",
-                                    color="info",
-                                    outline=True,
-                                    block=True,
-                                    n_clicks_timestamp=0,
-                                    id="btn-add-cause-category")
-                            ]
-                        )
-                    ])),
-                    html.Hr(),
-                    # specific effect subcategory
-                    dbc.Row(dbc.Col([
-                            dbc.Label("Specific cause subcategory", style={"fontWeight": "bold"}, id='label-cause-subcategory'),
-                            dcc.Dropdown(
-                                id="dropdown-cause-subcategory-selector",
-                                options=[], # Spawned list of dict options {'label': 'l1', 'value': 'v1'} during session
-                                placeholder="Type to search...",
-                                searchable=True,
-                                clearable=True,
-                                multi=True,
-                                persistence=True,
-                                persistence_type=PERSISTENCE)
-                        ]
-                    ), id="div-cause-subcategory", style={"visibility": "hidden"}),
-                    # definition of new effect types
-                    dbc.Row(dbc.Col([
-                        dbc.FormGroup(
-                            [
-                                dbc.Label("No cause subcategory suitable?"),
-                                dbc.Input(placeholder="define new cause subcategory...",
-                                    valid=False,
-                                    invalid=False,
-                                    persistence=True,
-                                    persistence_type=PERSISTENCE,
-                                    id="input-new-cause-subcategory"
-                                ),
-                                dbc.FormText("Try to select from available sub-causes. Care about naming conventions!"),
-                                dbc.Button("Save in database",
-                                    color="info",
-                                    outline=True,
-                                    block=True,
-                                    n_clicks_timestamp=0,
-                                    id="btn-add-cause-subcategory")
-                            ]
-                        )
-                    ]), id="div-add-cause-subcategory", style={"visibility": "hidden"}),
-                    # samples with same class assignment
+        def createAnnotationSelector(atype):
+            if 'sub' in atype:
+                multi = True
+                options = []
+                atype = atype[3:]
+                sub = 'sub'
+                style = {"visibility": "none"}
+                # samples with same class assignment
+                similarSamples = [
                     dbc.Row([
                         dbc.Col([
                             html.Hr(),
-                            dbc.Label(f"Other samples with same cause", style={"fontWeight": "bold"}),
+                            dbc.Label(f"Other samples with same {atype}", style={"fontWeight": "bold"}),
                             dbc.ListGroup(
                                 children=[],
-                                id="listgroup-similar-cause-samples"
+                                id=f"listgroup-similar-{atype}-samples"
                             )
-                        ], id="div-samples-cause")
+                        ], id=f"div-samples-{atype}", style={"visibility": "none"})
                     ])
-                ])
-            ]
-        
+                ]
+
+            else:
+                multi = False
+                options = queryAnnotationClasses(atype=atype)
+                sub = ''
+                style = {"visibility": "visible"}
+                similarSamples = []
+
+            # selection from existing classes
+            return [
+                dbc.Row(dbc.Col([
+                    dbc.Label(f"Select from existing {sub}{atype}s", style={"fontWeight": "bold"}, id=f"label-{atype}-{sub}category"),
+                    dcc.Dropdown(
+                        id=f"dropdown-{atype}-{sub}category-selector",
+                        options=options, # Spawned list of dict options {'label': 'l1', 'value': 'v1'} during session
+                        value=None,
+                        placeholder="Type to search...",
+                        searchable=True,
+                        clearable=True,
+                        multi=multi,
+                        persistence=True,
+                        persistence_type=PERSISTENCE
+                    )
+                ]), id=f"div-{atype}-{sub}category", style=style),
+                # definition of new effect
+                dbc.Row(dbc.Col([
+                    dbc.FormGroup(
+                        [
+                            dbc.FormText(f"New global {atype} category if not yet available:"),
+                            dbc.Input(placeholder=f"Define new {atype} {sub}category...",
+                                valid=False,
+                                invalid=False,
+                                persistence=True,
+                                persistence_type=PERSISTENCE,
+                                id=f"input-new-{atype}-{sub}category"
+                            ),
+                            dbc.Button("Save in database",
+                                color="info",
+                                outline=True,
+                                block=True,
+                                n_clicks_timestamp=0,
+                                id=f"btn-add-{atype}-{sub}category",
+                                style={'margin-top': '5px'}
+                            )
+                        ]
+                    )
+                ]), id=f"div-add-{atype}-{sub}category", style=style)
+            ] + similarSamples
+
         return [
             dbc.Row(_createToolbar()),
             html.Hr(),
-            dbc.Row(_createEffectView()),
+            # _createEffectView
+            dbc.Row([
+                dbc.Col(createAnnotationSelector('effect') + [ html.Hr() ] + createAnnotationSelector('subeffect'))
+            ]),
             html.Hr(),
-            dbc.Row(_createCauseView()),
+            #_createCauseView
+            dbc.Row([
+                dbc.Col(createAnnotationSelector('cause') + [ html.Hr() ] + createAnnotationSelector('subcause'))
+            ]),
             dbc.Row(dbc.Col(
                 dbc.Button([
                         "Save phenomenon",
@@ -509,7 +385,7 @@ def initWorkspace():
                 id="div-annotationSpace"
             ),
             dbc.Col(
-                children=[_createGraphSpace()],
+                children=_createGraphSpace(),
                 width=10,
                 id="div-graphSpace"
             )
@@ -551,9 +427,32 @@ def serve_layout():
             modified_timestamp=0,
             storage_type=PERSISTENCE
         ),
-    ],
-        fluid=True
-        # style={"height": "100vh"}
+        dbc.Modal(
+            [
+                dbc.ModalHeader("Bind Graph to a Data Connector"),
+                dbc.ModalBody(
+                    [   
+                        html.Div(id="div-newGraph-coupling-gtype", style={'display': 'none'}),
+                        dcc.Dropdown(
+                            id='dropdown-newGraph-coupling-idx',
+                            placeholder='Choose Data Connector',
+                            searchable=True,
+                            clearable=True
+                        )
+                    ]
+                ),
+                dbc.ModalFooter([
+                    dbc.Button("Cancel", id="btn-dimsiss-dialog-newGraph-coupling", n_clicks=0, className="ml-auto"),
+                    dbc.Button("Create Graph", id="btn-create-graph", disabled=True, n_clicks=0, className="ml-auto")
+                ]),
+            ],
+            id="dialog-newGraph-coupling",
+            size="md",
+            centered=True,
+        )
+    ] + [spawnConnectorDialogs(ctype) for ctype \
+                        in ['upload-connector','local-db-connector',
+                            'cloud-blob-connector','cloud-stream-connector']], fluid=True # style={"height": "100vh"}
     )
 
 
@@ -623,25 +522,19 @@ def spawnSimilarSamples(atypeSamplesStore: dict, atype: str = 'effect'):
     return samples
 
 
-def spawnDataConnector(strConnectorDesc, idx):
-    return dbc.Button(
-        [
+def spawnDataConnector(strConnectorDesc, idx, color):
+    return dbc.Col(
+        dbc.Button(
             str(strConnectorDesc),
-            # dbc.Progress(
-            #     value=0,
-            #     style={"height": "1px"},
-            #     id={
-            #         "type": "prg-data-connector",
-            #         "index": idx
-            #     },
-            # )
-        ],
-        id={
-            "type": "btn-data-connector",
-            "index": idx
-        },
-        color="secondary",
-        className="mr-1"
+            color=color,
+            n_clicks=0,
+            n_clicks_timestamp=0,
+            id={
+                "type": "btn-data-connector",
+                "index": idx
+            },
+            disabled=False
+        )
     )
 
 
@@ -656,6 +549,7 @@ def spawnGraph(idx, kind, listDictAllFeatures, strEQ, strType, intTotSamples, dt
     if not diff.days:
         strMaxDate = str(dtMaxDate + timedelta(days=1))
     strMinDate = str(dtMinDate)
+    intTotSamplesSelectable = intTotSamples
 
     if kind == 'scatter3d' and len(listDictAllFeatures) >= 2:
         intHalfOfFeatures = len(listDictAllFeatures) // 2
@@ -707,10 +601,8 @@ def spawnGraph(idx, kind, listDictAllFeatures, strEQ, strType, intTotSamples, dt
         ]
 
     elif kind == 'picture':
-        pH = 'picture'
-        dT = 'picture'
+        intTotSamplesSelectable = 1
 
-        intTotSamples = 1
         listComponentSelectFeature = [
             dbc.Col(
                 width=7,
@@ -719,9 +611,9 @@ def spawnGraph(idx, kind, listDictAllFeatures, strEQ, strType, intTotSamples, dt
                     dcc.Dropdown(
                         options=listDictAllFeatures,
                         value=[],
-                        multi=True,
+                        multi=False,
                         persistence_type=PERSISTENCE,
-                        placeholder=f'Select {pH}',
+                        placeholder=f'Select {kind}',
                         id={
                             "type": "dropdown-select-picture",
                             "index": idx
@@ -751,12 +643,12 @@ def spawnGraph(idx, kind, listDictAllFeatures, strEQ, strType, intTotSamples, dt
                     "index": idx
                 },
             ), style={'display': 'none'})
-    ]
+        ]
 
     else:
         pH = 'feature(s) on y-Axis'
-
         intTotSamples = 1
+
         listComponentSelectFeature = [
             dbc.Col(
                 width=7,
@@ -837,7 +729,7 @@ def spawnGraph(idx, kind, listDictAllFeatures, strEQ, strType, intTotSamples, dt
                                                             # "eq": strEQ,
                                                             # "type": strType
                                                         },
-                                                        max=intTotSamples,
+                                                        max=intTotSamplesSelectable,
                                                         min=1,
                                                         step=1
                                                     )
@@ -1016,7 +908,7 @@ def spawnConnectorDialogs(connectorType):
                 dbc.Select(
                     options=[
                         {"label": "Tensor / Time Series / nd-Arrays", "value": 'tensor'},
-                        {"label": "Picture (s)", "value": 'picture'},
+                        {"label": "Image(s)", "value": 'picture'},
                     ],
                     id={
                         'type': 'dialog-connector-gtype',
@@ -1052,12 +944,7 @@ def spawnConnectorDialogs(connectorType):
         dbc.InputGroup(
             [
                 dbc.Select(
-                    options=[
-                        {"label": "NC", "value": 'NC'},
-                        {"label": "SPS", "value": 'SPS'},
-                        {"label": "Bolting", "value": 'Bolting'},
-                        {"label": "Xray", "value": 'Xray'}
-                    ],
+                    options=[{'label': dc, 'value': dc} for dc in SUPPORTED_DATACATEGORIES],
                     id={
                         'type': 'dialog-connector-dataType',
                         'ctype': connectorType
@@ -1089,7 +976,7 @@ def spawnConnectorDialogs(connectorType):
     if connectorType == 'upload-connector':
         header = "Upload (large) file(s)"
         body = metaInfos + [
-            f"Supported extensions {[ext.replace('*', '') for ext in ['.'+e for e in TENSOR_EXTENSIONS]+PICTURE_EXTENSIONS]}",
+            f"Supported extensions {['.'+ext for ext in TENSOR_EXTENSIONS+PICTURE_EXTENSIONS]}",
             du.Upload(
                 text="Drag and Drop here or click to select files to upload",
                 text_completed='Completed: ',
@@ -1107,7 +994,7 @@ def spawnConnectorDialogs(connectorType):
                     'textAlign': 'center',
                     'margin': '5px'
                 },
-                filetypes=TENSOR_EXTENSIONS
+                filetypes=TENSOR_EXTENSIONS+PICTURE_EXTENSIONS
             )
         ]
 
@@ -1121,12 +1008,11 @@ def spawnConnectorDialogs(connectorType):
                     [
                         dbc.Input(
                             placeholder="localhost",
-                            valid=True,
                             id={
                                 'type': 'dialog-connector-host',
                                 'ctype': connectorType
                             },
-                            pattern=r"^(localhost|(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])))))?$"
+                            #pattern=r"^(localhost|(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])))))?$"
                         ),
                         dbc.InputGroupAddon("Server Host: ", addon_type="append"),
                     ],
@@ -1232,4 +1118,3 @@ def spawnConnectorDialogs(connectorType):
             'ctype': connectorType
         }
     )
-

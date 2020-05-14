@@ -1,26 +1,27 @@
 import dash
 from dash.dependencies import Input, Output, State, MATCH, ALL
+from dash.exceptions import PreventUpdate
 import dash_html_components as html
 import dash_core_components as dcc
 import dash_bootstrap_components as dbc
 import dash_html_components as html
 from datetime import datetime as dt
 import re
-
-from dash.exceptions import PreventUpdate
-from utils import createFigTemplate, queryTensorData, getUploadPath, queryPictureData, queryAnnotationClasses, storeAnnotationClasses, fa, querySimilarSamples, updatePic, updateScatter, updateScatter3d
-from layout import spawnGraph, spawnSimilarSamples, spawnDataConnector
 import numpy as np
+import os
+
+from utils import createFigTemplate, queryTensorData, getUploadPath, queryPictureData, queryAnnotationClasses, storeAnnotationClasses, fa, querySimilarSamples, updatePic, updateScatter, updateScatter3d, COLOR_PICKER, COLORS, SUPPORTED_DATACATEGORIES
+from layout import spawnGraph, spawnSimilarSamples, spawnDataConnector
 
 import time
 
 def register_callbacks(app):
     @app.callback(
-        [Output('div-graphSpace', 'children'),
+        [Output('div-graphContainer', 'children'),
          Output('btn-workspace-save', 'disabled')],
         [Input('btn-create-graph', 'n_clicks'),
          Input({'type': 'btn-remove-graph', 'index': ALL}, 'n_clicks_timestamp')],
-        [State('div-graphSpace', 'children'),
+        [State('div-graphContainer', 'children'),
          State('dropdown-newGraph-coupling-idx', 'value'),
          State('div-newGraph-coupling-gtype', 'children'),
          State('store-data-connectors', 'data')])
@@ -34,19 +35,16 @@ def register_callbacks(app):
             if "btn-remove-graph" in prop_id:
                 idx = eval(prop_id).get('index')
                 if idx:
-                    print('delete graph unsupported', len(listGraphSpaceChildren))
-                    raise PreventUpdate
-                    # TODO: fix correct index
+                    # delete the div; assume correct chronological ordering
                     del listGraphSpaceChildren[idx]
                     # shift prop intGraphIdx
                     listGraphSpaceChildren = treewalkShiftPropIdx(listGraphSpaceChildren)
-                    raise PreventUpdate
+                    print(len(listGraphSpaceChildren), listGraphSpaceChildren)
                 else:
                     raise PreventUpdate
 
             else:
                 #create graph
-
                 # general meta information
                 intGraphIdx = len(listGraphSpaceChildren)
                 listDictAllFeatures = dictMetainfo[idxConnector].get('schema') # pictures: [{'label': path.name, 'value': path}
@@ -56,13 +54,15 @@ def register_callbacks(app):
                 if 'picture' in gtype:
                     kind = 'picture'
                     listPicturePaths = queryPictureData()
-                    # last modiefied dates
+                    intTotSamples = len(listPicturePaths)
+                    if not intTotSamples:
+                        raise PreventUpdate
+                    # last modified dates
                     # earliest last modified data
                     mtimes = [os.path.getmtime(file) for file in listPicturePaths]
-                    dtMinDate = min(mtimes)
-                    dtMaxDate = max(mtimes)
-                    listDictAllFeatures = [{'label': path.name, 'value': path} for path in listPicturePaths]
-                    intTotSamples = len(listPicturePaths)
+                    dtMinDate = dt.fromtimestamp(min(mtimes))
+                    dtMaxDate = dt.fromtimestamp(max(mtimes))
+                    listDictAllFeatures = [{'label': path.name, 'value': str(path.name)} for path in listPicturePaths]
 
                 else:
                     tensorIndex = queryTensorData(idxConnector, None)
@@ -88,9 +88,9 @@ def register_callbacks(app):
                     dtMinDate=dtMinDate,
                     dtMaxDate=dtMaxDate
                 )
-                listGraphSpaceChildren.insert(0, newGraph)
+                listGraphSpaceChildren.insert(intGraphIdx, newGraph)
 
-            if len(listGraphSpaceChildren): #TODO: this should be -1
+            if len(listGraphSpaceChildren):
                 boolSaveBtnDisabled = False
             else:
                 boolSaveBtnDisabled = True
@@ -110,7 +110,7 @@ def register_callbacks(app):
          State({'type': 'dialog-connector-source', 'ctype': ALL}, 'value'),
          State('store-data-connectors', 'data')]
     )
-    def createConnectorMetainfo(_btnSaveAttributes, _uploader, dialogIsOpen, gtype, schema, eq, dataType, source, dictMetainfo):
+    def createConnectorMetainfo(_btnSaveAttributes, _uploader, dialogIsOpen, listgtype, listschema, listeq, listdataType, listsource, dictMetainfo):
         ctx = dash.callback_context
         if not ctx.triggered:
             raise PreventUpdate
@@ -120,8 +120,8 @@ def register_callbacks(app):
             
             if "upload-data" in prop_id:
                 fileNames = eval(prop_id).get('fileNames')
+                fileNames = set(fileNames)
                 if len(fileNames):
-                    fileNames = set(fileNames)
                     maxIdx = max(set(dictMetainfo), default=0)
                     dictMetainfo[maxIdx]['source'] = [str(getUploadPath() / fn) for fn in fileNames]
 
@@ -131,23 +131,31 @@ def register_callbacks(app):
 
                 else:
                     newSessionIdx = int(max(dictMetainfo.keys(), default=0)) + 1
+                    # ALL returns values of all shadowed divs
+                    # get corresponding dialog values
+                    triggeredDiv = 0
+                    for n, val in enumerate(listgtype):
+                        if val is not None:
+                            triggeredDiv = n
+                            gtype = val
+                            break
+                    schema = listschema[triggeredDiv]
+                    eq = listeq[triggeredDiv]
+                    dataType = listdataType[triggeredDiv]
+                    source = listsource[triggeredDiv]
 
-                    # get via Input Fields
-                    gtype = "tensor" # 'picture'
-                    schema = [
-                                # based on meta information derived from schema / dataframe header
-                                {"label": "Antriebsmomenten-Sollwert einer Achse/Spindel an X2",
-                                 "value": "aaTorque_X2"},
-                                {"label": "Antriebsauslastung einer Achse/Spindel an X2",
-                                 "value": "aaLoad_X2"},
-                                {"label": "Antriebsstrom-Istwert einer Achse/Spindel an X2",
-                                 "value": "aaCurr_X2"},
-                                {"label": "Antriebswirkleistung einer Achse/Spindel an X2",
-                                 "value": "aaPower_X2"},
-                            ] # pictures: [{'label': path.name, 'value': path}
-                    eq = "404000500065"
-                    source="", # str(getUploadPath() / fn) for n, fn in enumerate(fileNames)
-                    dataType = "NC"#'pictures'
+                    if not schema:
+                        schema = [
+                                    # based on meta information derived from schema / dataframe header
+                                    {"label": "Antriebsmomenten-Sollwert einer Achse/Spindel an X2",
+                                     "value": "aaTorque_X2"},
+                                    {"label": "Antriebsauslastung einer Achse/Spindel an X2",
+                                     "value": "aaLoad_X2"},
+                                    {"label": "Antriebsstrom-Istwert einer Achse/Spindel an X2",
+                                     "value": "aaCurr_X2"},
+                                    {"label": "Antriebswirkleistung einer Achse/Spindel an X2",
+                                     "value": "aaPower_X2"},
+                                ] # pictures: [{'label': path.name, 'value': path}
 
                     attr = dict(
                             gtype=gtype,
@@ -175,7 +183,7 @@ def register_callbacks(app):
          Input({'type': "dialog-connector-cancel", 'ctype': 'local-db-connector'}, "n_clicks_timestamp"),
          Input({'type': "dialog-connector-cancel", 'ctype': 'cloud-blob-connector'}, "n_clicks_timestamp"),
          Input({'type': "dialog-connector-cancel", 'ctype': 'cloud-stream-connector'}, "n_clicks_timestamp"),
-         Input('div-graphSpace', 'children')]
+         Input('div-graphContainer', 'children')]
     )
     def showDialogConnectionAttributes(_btnUploadConnector, _btnDBConnector, _btnBlobConnector, _btnStreamConnector,
             _dialogDismissUpload, _dialogDismissDB, _dialogDismissBlob, _dialogDismissStream, listGraphSpaceChildren):
@@ -185,7 +193,7 @@ def register_callbacks(app):
 
         closeAllDialogs = np.array([False, False, False, False])
         prop_id = ctx.triggered[0]['prop_id'].split('.')[0]
-        if not "div-graphSpace" in prop_id: # close dialog after creation
+        if not "div-graphContainer" in prop_id: # close dialog after creation
             componentType = eval(ctx.triggered[0]['prop_id'].split('.')[0])['type']
 
             if not 'dialog-connector-cancel' in componentType:
@@ -220,10 +228,10 @@ def register_callbacks(app):
          Input({'type': 'dialog-connector-port', 'ctype': MATCH}, 'value'),
          Input({'type': 'dialog-connector-user', 'ctype': MATCH}, 'value'),
          Input({'type': 'dialog-connector-pw', 'ctype': MATCH}, 'value'),
-         Input({'type': 'dialog-connector-host', 'ctype': MATCH}, 'valid')
+         #Input({'type': 'dialog-connector-host', 'ctype': MATCH}, 'valid')
          ]
     )
-    def checkConnectorAttributes(gtype, schema, eq, dataType, source, host, port, user, password, validHost
+    def checkConnectorAttributes(gtype, schema, eq, dataType, source, host, port, user, password#, validHost
         ):
         disabled = True
         valid = False
@@ -234,7 +242,7 @@ def register_callbacks(app):
             ctx = dash.callback_context
             if ctx.triggered:
                 componentType = eval(ctx.triggered[0]['prop_id'].split('.')[0])['ctype']
-                if "local-db-connector" in componentType and not (host and port and validHost): #
+                if "local-db-connector" in componentType and not (host and port): # and validHost
                     disabled = True
                 else:
                     disabled = False
@@ -250,7 +258,7 @@ def register_callbacks(app):
          Input('btn-add-graph-3D', 'n_clicks_timestamp'),
          Input('btn-add-graph-pic', 'n_clicks_timestamp'),
          Input('btn-dimsiss-dialog-newGraph-coupling', 'n_clicks'),
-         Input('div-graphSpace', 'children')],
+         Input('div-graphContainer', 'children')],
         [State('store-data-connectors', 'data')])
     def openDialogDataGraphConnection(add2D, add3D, addPic, dismissDialogConnection, listGraphSpaceChildren, dictMetainfo):
         ctx = dash.callback_context
@@ -258,7 +266,7 @@ def register_callbacks(app):
             raise PreventUpdate
         else:
             prop_id = ctx.triggered[0]['prop_id'].split('.')[0]
-            if not dictMetainfo or 'btn-dimsiss-dialog-newGraph-coupling' in prop_id or 'div-graphSpace' in prop_id:
+            if not dictMetainfo or 'btn-dimsiss-dialog-newGraph-coupling' in prop_id or 'div-graphContainer' in prop_id:
                 # close dialog after creation
                 # no data connector available
                 return [], '', False
@@ -300,7 +308,7 @@ def register_callbacks(app):
          State({'type': 'dropdown-select-feature-Z', 'index': MATCH}, 'placeholder'),
          State({'type': 'dropdown-select-picture', 'index': MATCH}, 'placeholder')]
     )
-    def changeGraph(strSelectedValuesY, strSelectedValuesZ, strSelectedValuesPic,
+    def changeGraph(listSelectedValuesY, listSelectedValuesZ, strSelectedValuesPic,
             nSamples, start_date, end_date, start_time, samplingMethod, btnReloadGraph,
             shadowY, shadowZ, shadowPic):
         if nSamples is None:
@@ -332,26 +340,26 @@ def register_callbacks(app):
                 return fig
 
             elif 'Shadowing' in shadowZ:
-                if not strSelectedValuesY:
+                if not listSelectedValuesY:
                     raise PreventUpdate
                 # scatter
-                fig = updateScatter(dimsY=strSelectedValuesY,
+                fig = updateScatter(dimsY=listSelectedValuesY,
                         start_date=start_date, end_date=end_date,
                         start_time=start_time, method=samplingMethod, n=nSamples)
                 return fig
 
             else:
-                if not strSelectedValuesY and not trSelectedValuesZ:
+                if not listSelectedValuesY and not listSelectedValuesZ:
                     raise PreventUpdate
                 # scatter3d
-                fig = updateScatter3d(dimsY=strSelectedValuesY, dimsZ=strSelectedValuesZ,
+                fig = updateScatter3d(dimsY=listSelectedValuesY, dimsZ=listSelectedValuesZ,
                         start_date=start_date, end_date=end_date,
                         start_time=start_time, method=samplingMethod, n=nSamples)
                 return fig
-            # strLabel = [dictOption['label'] for dictOption in listDictAllFeatures if strSelectedValuesY in dictOption['value']][0]
+            # strLabel = [dictOption['label'] for dictOption in listDictAllFeatures if listSelectedValuesY in dictOption['value']][0]
             # config['toImageButtonOptions'] = {
             #     'format': 'png',
-            #     'filename': f"{strSelectedValuesY}-{strLabel}_Mephisto.png",
+            #     'filename': f"{listSelectedValuesY}-{strLabel}_Mephisto.png",
             # }
 
 
@@ -386,20 +394,51 @@ def register_callbacks(app):
 
         
     @app.callback(
-        Output('btn-tools-linker', 'active'),
-        [Input('confirm-dialog-reset', 'submit_n_clicks_timestamp'),
+        [Output('btn-tools-linker', 'disabled'),
+         Output('btn-tools-linker', 'active')],
+        [Input('div-graphContainer', 'children'),
+         Input({'type': 'dropdown-select-feature-Y', 'index': ALL}, 'value'),
+         Input({'type': 'dropdown-select-feature-Z', 'index': ALL}, 'value'),
+         Input({'type': 'dropdown-select-picture', 'index': ALL}, 'value'),
+         Input('confirm-dialog-reset', 'submit_n_clicks_timestamp'),
          Input('btn-tools-linker', 'n_clicks_timestamp')],
-        [State('btn-tools-linker', 'active')]
+        [State({'type': 'input-select-sample-n', 'index': ALL}, 'value'),
+         State('btn-tools-linker', 'active'),
+         State('btn-tools-linker', 'disabled')]
     )
-    def resetWorkspace(reset, link, linkingActive):
-        if reset == link:
+    def resetWorkspace(listGraphSpaceChildren,
+            listSelectedValuesY, listSelectedValuesZ, listSelectedValuesPic,
+            reset, link, listNSamples, linkingActive, linkingDisabled):
+        ctx = dash.callback_context
+        if not ctx.triggered:
             raise PreventUpdate
-        elif reset > link:
-            linkingActive = False
-            # TODO: reset all annotations and no selection of classes.
         else:
-            linkingActive = not linkingActive
-        return linkingActive
+            prop_id = ctx.triggered[0]['prop_id'].split('.')[0]
+            if 'div-graphContainer' in prop_id:
+                if len(listGraphSpaceChildren) < 1:
+                    # no graph; triggered on deletion
+                    linkingDisabled = True
+                    linkingActive = False
+
+                elif len(listGraphSpaceChildren) > 1:
+                    # more than one graph spawned
+                    linkingDisabled = False
+
+                else:
+                    for y, z, p, n in zip(listSelectedValuesY, listSelectedValuesZ, listSelectedValuesPic, listNSamples):
+                        if len(y) + len(z) + len(p) and n:
+                            linkingDisabled = False
+                            break
+                    else:
+                        linkingDisabled = True
+
+            else:
+                if reset > link:
+                    linkingActive = False
+                else:
+                    linkingActive = not linkingActive
+        
+        return linkingDisabled, linkingActive
     
 
     @app.callback(
@@ -496,8 +535,8 @@ def register_callbacks(app):
     def showSubClasses(listSelectedEffects, listSelectedCauses, _, saveSuccess,
         dictSubeffectVisible, dictSubcauseVisible):
         # reset
-        dictSubeffectVisible = {"visibility": "hidden"}
-        dictSubcauseVisible = {"visibility": "hidden"}
+        dictSubeffectVisible = {"visibility": "none"}
+        dictSubcauseVisible = {"visibility": "none"}
         boolResetBtnDisabled = True
 
         # check if saving process or reset fired
@@ -508,7 +547,7 @@ def register_callbacks(app):
             prop_id = ctx.triggered[0]['prop_id'].split('.')[0]
             if "alert-saved" in prop_id:
                 if saveSuccess:
-                    dictSubeffectVisible = dictSubcauseVisible = {"visibility": "hidden"}
+                    dictSubeffectVisible = dictSubcauseVisible = {"visibility": "none"}
                     boolResetBtnDisabled = True
                 else:
                     # failed 
@@ -595,38 +634,46 @@ def register_callbacks(app):
 
 
     @app.callback(
-        [Output('tab-data-connectors', 'children'),
+        [Output('div-data-connectors', 'children'),
          Output('tab-data-connectors', 'label'),
-         Output('tab-data-connectors', 'disabled')],
+         Output('tab-data-connectors', 'disabled'),
+         Output('btn-add-graph-2D', 'disabled'),
+         Output('btn-add-graph-3D', 'disabled'),
+         Output('btn-add-graph-pic', 'disabled')],
         [Input('store-data-connectors', 'modified_timestamp')],
-        [State('div-data-connectors', 'children'),
-         State('tab-data-connectors', 'disabled'),
-         State('store-data-connectors', 'data')]
+        [State('tab-data-connectors', 'disabled'),
+         State('store-data-connectors', 'data'),
+         #State('div-data-connectors', 'children'),
+        ]
     )
-    def spawnData(newConnector, listAvailableDataConnectors, disabled, dictMetainfo):
+    def spawnData(newConnector, disabled, dictMetainfo):
         if not dictMetainfo or not newConnector:
             raise PreventUpdate
 
-        availIdx = [comp for comp in listAvailableDataConnectors] #['id']['index']
+        itemsDataConnectors = []
         for k, m in dictMetainfo.items():
             # if m not in availIdx:
-            listAvailableDataConnectors.append(
-                spawnDataConnector(f"{k}:\n  EQ: {m['eq']}\n"+f"{m['dataType']}", idx=k)
+            dataCat = m['dataType']
+            eq = m['eq']
+            strConnectorDesc = f"{k}:\n  EQ: {eq}"+f" - {dataCat}"
+            color = COLOR_PICKER[dataCat]
+            itemsDataConnectors.append(
+                spawnDataConnector(strConnectorDesc, idx=k, color=color)
             )
 
-        nConnectors = len(listAvailableDataConnectors)
+        nConnectors = len(itemsDataConnectors)
 
         if nConnectors:
             disabled = False
         else:
             disabled = True
 
-        return listAvailableDataConnectors, f"Data Connectors: {nConnectors}", disabled
+        listPicturePaths = queryPictureData()
+        if len(listPicturePaths) and not disabled:
+            disabledPic = False 
+        else:
+            disabledPic = True
 
-
-#anything uploading??
-#                        "", color="light", id="badge-connector"),
-                    # color: primary==uploading, success==allready, danger==error
-
+        return itemsDataConnectors, f"Data Connectors: {nConnectors}", disabled, disabled, disabled, disabled
 
 # click on similar samples to plot in another plot

@@ -1,25 +1,26 @@
 
+from pathlib import Path
+import sys
+BASE_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, BASE_DIR)
+
 import dash_uploader as du
 import dash
 import dash_bootstrap_components as dbc
-from pathlib import Path
-import sys
 from flask_caching import Cache
 from layout import serve_layout
 from callbacks import register_callbacks
 from os import environ as env
+from utils import UPLOADPATH
 
 DEBUG = True
 
-BASE_DIR = Path(__file__).resolve().parent
-sys.path.insert(0, BASE_DIR)
-UPLOADPATH = BASE_DIR.joinpath("uploads")
 if DEBUG:
-	import shutil
-	try:
-		shutil.rmtree(str(UPLOADPATH))
-	except FileNotFoundError:
-		pass
+    import shutil
+    try:
+        shutil.rmtree(str(UPLOADPATH))
+    except FileNotFoundError:
+        pass
 UPLOADPATH.mkdir(parents=False, exist_ok=True)
 
 app = dash.Dash(
