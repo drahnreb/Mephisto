@@ -13,7 +13,7 @@ from callbacks import register_callbacks
 from os import environ as env
 from utils import UPLOADPATH
 
-DEBUG = True
+DEBUG = False
 
 if DEBUG:
     import shutil
