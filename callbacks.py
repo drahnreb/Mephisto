@@ -101,16 +101,17 @@ def register_callbacks(app):
     @app.callback(
          Output('store-data-connectors', 'data'),
         [Input({'type': 'dialog-connector-save-attributes', 'ctype': ALL}, 'n_clicks'),
-         Input('upload-data', 'fileNames')],
+         Input('upload-data', 'isCompleted')],
         [State({'type': 'dialog-connector-attributes', 'ctype': ALL}, 'is_open'),
          State({'type': 'dialog-connector-gtype', 'ctype': ALL}, 'value'),
          State({'type': 'dialog-connector-schema', 'ctype': ALL}, 'value'),
          State({'type': 'dialog-connector-eq', 'ctype': ALL}, 'value'),
          State({'type': 'dialog-connector-dataType', 'ctype': ALL}, 'value'),
          State({'type': 'dialog-connector-source', 'ctype': ALL}, 'value'),
-         State('store-data-connectors', 'data')]
+         State('store-data-connectors', 'data'),
+         State('upload-data', 'fileNames')]
     )
-    def createConnectorMetainfo(_btnSaveAttributes, _uploader, dialogIsOpen, listgtype, listschema, listeq, listdataType, listsource, dictMetainfo):
+    def createConnectorMetainfo(_btnSaveAttributes, uploadCompleted, dialogIsOpen, listgtype, listschema, listeq, listdataType, listsource, dictMetainfo, fileNames):
         ctx = dash.callback_context
         if not ctx.triggered:
             raise PreventUpdate
