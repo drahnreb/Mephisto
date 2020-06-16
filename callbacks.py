@@ -88,7 +88,7 @@ def register_callbacks(app):
                     dtMinDate=dtMinDate,
                     dtMaxDate=dtMaxDate
                 )
-                listGraphSpaceChildren.insert(intGraphIdx, newGraph)
+                listGraphSpaceChildren.insert(1, newGraph)
 
             if len(listGraphSpaceChildren):
                 boolSaveBtnDisabled = False
@@ -117,12 +117,11 @@ def register_callbacks(app):
             raise PreventUpdate
 
         else:
-            prop_id = ctx.triggered[0]['prop_id'].split('.')[0]
+            prop_id = ctx.triggered[0]['prop_id'].split('.')#[0]
             
-            if "upload-data" in prop_id:
-                fileNames = eval(prop_id).get('fileNames')
-                fileNames = set(fileNames)
+            if "upload-data" in prop_id and fileNames is not None:
                 if len(fileNames):
+                    fileNames = set(fileNames)
                     maxIdx = max(set(dictMetainfo), default=0)
                     dictMetainfo[maxIdx]['source'] = [str(getUploadPath() / fn) for fn in fileNames]
 
@@ -130,43 +129,45 @@ def register_callbacks(app):
                 if not dialogIsOpen: #and not any(btnSaveAttributes)
                     raise PreventUpdate
 
+                elif any(listgtype):
+                        newSessionIdx = int(max(dictMetainfo.keys(), default=0)) + 1
+                        # ALL returns values of all shadowed divs
+                        # get corresponding dialog values
+                        triggeredDiv = 0
+                        for n, val in enumerate(listgtype):
+                            if val is not None:
+                                triggeredDiv = n
+                                gtype = val
+                                break
+                        schema = listschema[triggeredDiv]
+                        eq = listeq[triggeredDiv]
+                        dataType = listdataType[triggeredDiv]
+                        source = listsource[triggeredDiv]
+
+                        if not schema:
+                            schema = [
+                                        # based on meta information derived from schema / dataframe header
+                                        {"label": "Antriebsmomenten-Sollwert einer Achse/Spindel an X2",
+                                         "value": "aaTorque_X2"},
+                                        {"label": "Antriebsauslastung einer Achse/Spindel an X2",
+                                         "value": "aaLoad_X2"},
+                                        {"label": "Antriebsstrom-Istwert einer Achse/Spindel an X2",
+                                         "value": "aaCurr_X2"},
+                                        {"label": "Antriebswirkleistung einer Achse/Spindel an X2",
+                                         "value": "aaPower_X2"},
+                                    ] # pictures: [{'label': path.name, 'value': path}
+
+                        attr = dict(
+                                gtype=gtype,
+                                eq=eq,
+                                dataType=dataType,
+                                source=source,
+                                schema=schema
+                            )
+
+                        dictMetainfo[newSessionIdx] = attr
                 else:
-                    newSessionIdx = int(max(dictMetainfo.keys(), default=0)) + 1
-                    # ALL returns values of all shadowed divs
-                    # get corresponding dialog values
-                    triggeredDiv = 0
-                    for n, val in enumerate(listgtype):
-                        if val is not None:
-                            triggeredDiv = n
-                            gtype = val
-                            break
-                    schema = listschema[triggeredDiv]
-                    eq = listeq[triggeredDiv]
-                    dataType = listdataType[triggeredDiv]
-                    source = listsource[triggeredDiv]
-
-                    if not schema:
-                        schema = [
-                                    # based on meta information derived from schema / dataframe header
-                                    {"label": "Antriebsmomenten-Sollwert einer Achse/Spindel an X2",
-                                     "value": "aaTorque_X2"},
-                                    {"label": "Antriebsauslastung einer Achse/Spindel an X2",
-                                     "value": "aaLoad_X2"},
-                                    {"label": "Antriebsstrom-Istwert einer Achse/Spindel an X2",
-                                     "value": "aaCurr_X2"},
-                                    {"label": "Antriebswirkleistung einer Achse/Spindel an X2",
-                                     "value": "aaPower_X2"},
-                                ] # pictures: [{'label': path.name, 'value': path}
-
-                    attr = dict(
-                            gtype=gtype,
-                            eq=eq,
-                            dataType=dataType,
-                            source=source,
-                            schema=schema
-                        )
-
-                    dictMetainfo[newSessionIdx] = attr
+                    raise PreventUpdate
 
         return dictMetainfo
 
